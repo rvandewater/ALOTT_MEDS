@@ -161,7 +161,7 @@ emr-datasets/Labs:
     code: f"LAB//RESULT//{$PROC_ID}//{$COMPONENT_NAME ?? 'UNK'}"
     time: 'f"{$offsetResultDate} {$offsetResultTime}"::"%Y-%m-%d %H:%M:%S"'
     hadm_id: $Resulting_CSN
-    numeric_value: $ORD_NUM_VALUE::?float64
+    numeric_value: "$ORD_NUM_VALUE::?float64 if $ORD_NUM_VALUE != 9999999"
     text_value: $ORD_VALUE
     order_status: $order_status
     _metadata:

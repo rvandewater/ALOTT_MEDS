@@ -220,9 +220,12 @@ def test_e2e_synthetic():
         admits = data.filter(pl.col("code").str.starts_with("HOSPITAL_ADMISSION"))
         assert (admits["time"].dt.hour() == 8).all()
 
-        # Free-text flowsheet values keep their numeric reading only where they have one.
+        # Free-text values keep their numeric reading only where they have one. Epic uses
+        # ORD_NUM_VALUE=9999999 when a lab result is non-numeric; that sentinel must stay null.
         flows = data.filter(pl.col("code") == "FLOWSHEET//8")
         assert flows["numeric_value"].null_count() == N_SUBJECTS // 2
+        labs = data.filter(pl.col("code") == "LAB//RESULT//101//SODIUM")
+        assert labs.filter(pl.col("text_value") == "see comment")["numeric_value"].is_null().all()
 
         codes = pl.read_parquet(metadata / "codes.parquet")
         dx = codes.filter(pl.col("code") == "DIAGNOSIS//ICD//10//I50.23")
