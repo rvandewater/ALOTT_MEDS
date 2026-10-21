@@ -3,34 +3,67 @@ requires = ["setuptools>=64", "setuptools-scm>=8.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "ETL-MEDS"
+name = "ALOTT-MEDS"
 dynamic = ["version"]
 authors = [
-  { name="Matthew McDermott", email="mattmcdermott8@gmail.com" },
+  { name="Robin van de Water", email="rpv2114@cumc.columbia.edu" },
 ]
-description = "A template ETL pipeline to extract arbitrary data into the MEDS format."
+description = "An ETL pipeline to extract the ALOTT (Carescape) EMR data into the MEDS format."
 readme = "README.md"
-requires-python = ">=3.11"
+# Mirrors MEDS-Extract's own floor and ceiling; a looser range admits interpreters it
+# cannot be installed on, and uv refuses to resolve at all.
+requires-python = ">=3.11.4,<3.14"
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
+# This package ships no Python: the whole ETL is `event_configs.yaml`, run by
+# MEDS-Extract's own `meds-extract-run`. So there is exactly one dependency — the
+# `[download]` extra adds `meds-extract-download`, which the runner spawns to stage the
+# raw data from PhysioNet. MEDS-transforms, polars and hydra all arrive through it at the
+# versions it fences; duplicating those pins here would only create drift.
 dependencies = [
-  "meds-transforms~=0.2", "requests", "beautifulsoup4", "hydra-core"
+    "meds-extract[download]>=0.7.0,<0.8",
+]
+
+[dependency-groups]
+# `shfmt-py` bundles the `shfmt` binary that the `mdformat-shfmt` pre-commit hook shells
+# out to, keeping local + CI behavior in lock step.
+dev = [
+    "pre-commit~=3.8",
+    "ruff>=0.11,<1.0",
+    "pytest~=9.0",
+    "shfmt-py==3.12.0.2",
 ]
 
 [tool.setuptools_scm]
 
-[project.optional-dependencies]
-dev = ["pre-commit<4"]
-tests = ["pytest", "pytest-cov"]
-local_parallelism = ["hydra-joblib-launcher"]
-slurm_parallelism = ["hydra-submitit-launcher"]
-
-[project.scripts]
-MEDS_extract-sample_dataset = "ETL_MEDS.__main__:main"
+[project.entry-points."MEDS_extract.pipelines"]
+ALOTT = "ALOTT_MEDS:event_configs.yaml"
 
 [project.urls]
-Homepage = "https://github.com/Medical-Event-Data-Standard/ETL_MEDS_Template"
-Issues = "https://github.com/Medical-Event-Data-Standard/ETL_MEDS_Template/issues"
+Homepage = "https://github.com/rvandewater/ALOTT_MEDS"
+Issues = "https://github.com/rvandewater/ALOTT_MEDS/issues"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 110
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle
+    "F",   # pyflakes
+    "I",   # isort
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "RUF", # Ruff-specific rules
+    "SIM", # flake8-simplify
+]
+ignore = [
+    "SIM108", # ternary operator suggestions
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
