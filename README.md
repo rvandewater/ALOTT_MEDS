@@ -1,197 +1,100 @@
-# Extract your custom dataset via MEDS-Transforms
+# ALOTT MEDS Extraction ETL
 
-[![codecov](https://codecov.io/gh/Medical-Event-Data-Standard/ETL_MEDS_Template/graph/badge.svg?token=RW6JXHNT0W)](https://codecov.io/gh/Medical-Event-Data-Standard/ETL_MEDS_Template)
-[![tests](https://github.com/Medical-Event-Data-Standard/ETL_MEDS_Template/actions/workflows/tests.yaml/badge.svg)](https://github.com/Medical-Event-Data-Standard/ETL_MEDS_Template/actions/workflows/tests.yml)
-[![code-quality](https://github.com/Medical-Event-Data-Standard/ETL_MEDS_Template/actions/workflows/code-quality-main.yaml/badge.svg)](https://github.com/Medical-Event-Data-Standard/ETL_MEDS_Template/actions/workflows/code-quality-main.yaml)
-![python](https://img.shields.io/badge/-Python_3.11-blue?logo=python&logoColor=white)
-[![license](https://img.shields.io/badge/License-MIT-green.svg?labelColor=gray)](https://github.com/Medical-Event-Data-Standard/ETL_MEDS_Template#license)
-[![PRs](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/Medical-Event-Data-Standard/ETL_MEDS_Template/pulls)
-[![contributors](https://img.shields.io/github/contributors/Medical-Event-Data-Standard/ETL_MEDS_Template.svg)](https://github.com/Medical-Event-Data-Standard/ETL_MEDS_Template/graphs/contributors)
+[![tests](https://github.com/rvandewater/ALOTT_MEDS/actions/workflows/tests.yaml/badge.svg)](https://github.com/rvandewater/ALOTT_MEDS/actions/workflows/tests.yaml)
+[![code-quality](https://github.com/rvandewater/ALOTT_MEDS/actions/workflows/code-quality-main.yaml/badge.svg)](https://github.com/rvandewater/ALOTT_MEDS/actions/workflows/code-quality-main.yaml)
+![python](https://img.shields.io/badge/-Python_3.11+-blue?logo=python&logoColor=white)
+[![license](https://img.shields.io/badge/License-MIT-green.svg?labelColor=gray)](LICENSE)
 
-A template repository for a MEDS-Transforms powered extraction pipeline for a custom dataset. Once you have
-customized the repository to your dataset (see instructions below), you will be able to run your extraction
-pipeline with a few simple command-line commands, such as:
+This pipeline extracts the EMR tables of the
+[ALOTT](https://physionet.org/content/alott/1.0.0/) dataset (PhysioNet; the "Carescape"
+data from the dataset authors' [release code](https://github.com/johnclawrence/Carescape))
+into the [MEDS](https://github.com/Medical-Event-Data-Standard/meds) format. It is built
+the same way as [MIMIC_IV_MEDS](https://github.com/Medical-Event-Data-Standard/MIMIC_IV_MEDS):
+one declarative [MEDS-Extract](https://github.com/mmcdermott/MEDS_extract) spec, no Python.
+
+## Usage
 
 ```bash
-pip install PACKAGE_NAME # you can do this locally or via PyPI
-# Download your data or set download credentials
-COMMAND_NAME root_output_dir=$ROOT_OUTPUT_DIR
+pip install git+https://github.com/rvandewater/ALOTT_MEDS
+export DATASET_DOWNLOAD_USERNAME=$PHYSIONET_USERNAME
+export DATASET_DOWNLOAD_PASSWORD=$PHYSIONET_PASSWORD
+meds-extract-run spec=ALOTT output_dir=$MEDS_OUTPUT_DIR
 ```
 
-See the [MIMIC-IV MEDS Extraction ETL](https://github.com/Medical-Event-Data-Standard/MIMIC_IV_MEDS) for an end to end example!
+When you run this, the program will:
 
-## How to use this repository
+1. Download only the `emr-datasets/` folder of the ALOTT 1.0.0 release (the telemetry is
+    skipped) into `$MEDS_OUTPUT_DIR/.meds_extract_run/raw_input`. Files that already exist
+    and verify against PhysioNet's checksums are skipped, so an interrupted download
+    resumes. Pass `download_dest_dir=$RAW_INPUT_DIR` to keep the raw data somewhere durable.
+2. Construct the MEDS cohort directly from those raw files — every transformation is
+    declared in [`src/ALOTT_MEDS/event_configs.yaml`](src/ALOTT_MEDS/event_configs.yaml) —
+    and write it to `$MEDS_OUTPUT_DIR` (`data/` and `metadata/`).
 
-1. Initialize a new repository using this template repository.
-2. Rename the directory after `src/` to the name of your package in python-friendly format (e.g.,
-    `MIMIC_IV_MEDS`).
-3. Customize the following code points:
-    - [`pyproject.toml`](#pyprojecttoml)
-    - [`src/.../__init__.py`](#srcinitpy)
-    - [`src/.../dataset.yaml`](#srcdatasetyaml)
-    - [`src/.../pre_MEDS.py`](#srcpre_medspy)
-    - [`src/.../event_configs.yaml`](#srcevent_configsyaml)
-    - [`README.md`](#readmemd)
-    - [`tests/e2e_demo_test.py`](#testse2e_demo_testpy)
-4. Customize the following external services:
-    - CodeCov
-    - PyPI
+ALOTT is a credentialed release: the PhysioNet account must have signed the ALOTT data use
+agreement.
 
-### Code Points:
+If you already downloaded the EMR tables yourself, skip the download. `input_dir` must be
+the directory that *contains* `emr-datasets/`:
 
-#### `pyproject.toml`
-
-In the `pyproject.toml` file, you will need to update the following fields:
-
-1. Under `[project]`:
-    - `name = "ETL-MEDS"`: Update `ETL-MEDS` to the name of your package (e.g., `MIMIC-IV-MEDS`)
-    - `authors = [...]`: Update the author information to your name and email.
-    - `description = "..."`: Update the description to a brief description of your dataset.
-    - `dependencies = [...]`: Update the dependencies to include the necessary packages for your ETL pipeline
-        (if any additional packages are needed).
-2. Under `[project.scripts]`
-    - `MEDS_extract-sample_dataset = "ETL_MEDS.__main__:main"`: Update `MEDS_extract-sample_dataset` to the
-        name of your command-line pipeline (e.g., `MIMIC-IV_extract`) and update `ETL_MEDS` to the name of your
-        package that you would import in python (e.g., `MIMIC_IV_MEDS`). This will be the same as the directory
-        name between `src` and your actual code.
-3. Under `[project.urls]`
-    - `Homepage = "..."` Update the homepage to the URL of your GitHub repository.
-    - `Issues = "..."` Update the issues URL to the URL of your GitHub repository issues page.
-
-#### `src/.../__init__.py`
-
-In this file, you simply need to update the `__package_name__ = "ETL_MEDS"` line to refer not to `ETL_MEDS`
-but to your new package import name (e.g., `MIMIC_IV_MEDS`)
-
-#### `src/.../dataset.yaml`
-
-In this file, you can add details about the dataset you are working with. This will be used to record metadata
-about the dataset and to provide links from which the dataset can be downloaded. You'll need to modify:
-
-1. `dataset_name`: The name of the dataset.
-2. `raw_dataset_version`: The version this version of your pipeline is designed to work with.
-3. `urls`: This block contains the URLs from which the dataset can be downloaded. This field requires
-    additional commentary, explored below.
-
-##### URLs:
-
-This field is an object and contains three sub-keys:
-
-1. `dataset`: The URLs for the full dataset.
-2. `demo`: The URLs for a smaller, open, demo version of the dataset.
-3. `common`: The URLs for shared metadata files or other shared resources.
-
-Each of these sub-keys should be a list of either strings (plain URLs) or dictionaries containing the URL (in
-the key `url`) and username and password authentication information (in the keys `username` and `password`).
-Note that we _strongly_ recommend that you _do not_ include your username and password in the raw file.
-Instead, leverage the OmegaConf resolvers to reference external environment variables or other secure methods
-of storing this information. In the example in this repository, we include one URL with the following
-configuration:
-
-```yaml
-  - url: EXAMPLE_CONTROLLED_URL
-    username: ${oc.env:DATASET_DOWNLOAD_USERNAME}
-    password: ${oc.env:DATASET_DOWNLOAD_PASSWORD}
+```bash
+wget -r -N -c -np -nH --cut-dirs=3 -R "index.html*" -P "$RAW_INPUT_DIR" \
+	--user "$PHYSIONET_USERNAME" --ask-password \
+	https://physionet.org/files/alott/1.0.0/emr-datasets/
+meds-extract-run spec=ALOTT output_dir=$MEDS_OUTPUT_DIR do_download=false input_dir=$RAW_INPUT_DIR
 ```
 
-which would resolve to fill in the `username` and `password` from the environment variables
-`DATASET_DOWNLOAD_USERNAME` and `DATASET_DOWNLOAD_PASSWORD`, respectively.
+Run `meds-extract-run --help` for the full set of arguments.
 
-###### What if my dataset doesn't support direct download/this style of downloading?
+## How this ETL is defined
 
-That's no problem! You can simply turn off downloading entirely by setting `do_download=False` in the
-`configs/main.yaml` or on the command line when you run the pipeline and ensure that your data files are
-manually downloaded and placed in the appropriate directory (the `raw_input_dir` in the `configs/main.yaml`).
-If there is a technical issue with downloading the data through the format supported so far, you can also file
-a [GitHub Issue](https://github.com/Medical-Event-Data-Standard/ETL_MEDS_Template/issues) outlining your issue and we can
-attempt to expand the supported libraries to cover your use case!
+There is no Python in this package. The entire ETL is one file,
+[`src/ALOTT_MEDS/event_configs.yaml`](src/ALOTT_MEDS/event_configs.yaml), written in MESSY
+(MEDS-Extract Specification Syntax YAML):
 
-#### `pre_MEDS.py`
+- a `sources:` block pointing at the PhysioNet release, restricted to `emr-datasets/*`;
+- an `etl:` block with the run's few knobs;
+- one block per raw EMR table describing the events extracted from it.
 
-This script should be generally modified to include any "pre-MEDS" steps that are necessary to prepare the
-dataset for MEDS-Transforms based extraction. Critically, these steps often include:
+`pyproject.toml` registers that file with MEDS-Extract under the name `ALOTT`, which is
+what makes `spec=ALOTT` work from anywhere and what stamps the output's
+`metadata/dataset.json` with `<ALOTT release>:<this package's version>`.
 
-1. De-compressing files or otherwise preparing the raw data for extraction at a technical level.
-2. Joining tables together so that all relevant rows include the unifying `subject_id`.
-3. Converting any offsets into timestamps.
-4. Any other modifications of interest.
+## Modelling decisions
 
-See [MEDS-Transforms](TODO) for more documentation on the appropriate construction of the pre-MEDS script.
+- **Timestamps.** ALOTT shifts each patient's dates by a random -180..180 days but keeps
+    the time of day, and stores every timestamp as a shifted date column plus a separate
+    `HH:MM:SS` column. The spec recombines the two before parsing; a row missing either
+    half produces no event.
+- **IDs.** `csID` (PhysioNet's aMRN) is the MEDS `subject_id`; the encounter key
+    (`CS_PAT_ENC_CSN_ID`, aCSN) is carried as `hadm_id`. Labs and orders use the
+    resulting/ordering encounter respectively.
+- **Diagnoses.** The primary and secondary ICD-10 codes on each visit become
+    `DIAGNOSIS//ICD//10//<code>` events at discharge time, with `diagnosis_rank` set to
+    `PRIMARY` or `SECONDARY` and parent code `ICD10CM/<code>`.
+- **Demographics and allergies** carry no time in the release and are static events.
+    Missing demographics produce no event rather than an `…//UNK` code.
+- **Flowsheet and lab values** are free text. The numeric reading is kept where it parses,
+    and the raw string is always kept in `text_value`.
+- **Not extracted:** the telemetry (alarms, 2-second measurements, waveforms; per-admission
+    files keyed by file name, far larger than the EMR), `SocialHx` (no event times and
+    unlabeled Epic category codes), and medication administrations (`MAR_TAKEN_TIME` is
+    not date-shifted in the authors' release code).
 
-#### `event_configs.yaml`
+> [!WARNING]
+> The table and column names in the spec come from the dataset authors' public release
+> code. They have not yet been checked against the files PhysioNet serves. If a run fails
+> on a missing table or column, the release renamed it and the spec needs updating.
 
-This file is the configuration file for mapping the rows in your various raw data tables to MEDS events via
-the MEDS-Transforms pipeline. See [MEDS-Transforms](TODO) for more documentation on the format and usage of
-this file.
+## Development
 
-#### `README.md`
-
-Insert badges like below:
-
-```markdown
-[![PyPI - Version](https://img.shields.io/pypi/v/PACKAGE_NAME)](https://pypi.org/project/PACKAGE_NAME/)
-[![Documentation Status](https://readthedocs.org/projects/REPO_NAME/badge/?version=latest)](https://REPO_NAME.readthedocs.io/en/stable/?badge=stable)
-[![codecov](https://codecov.io/gh/Medical-Event-Data-Standard/REPO_NAME/graph/badge.svg?token=REPO_TOKEN)](https://codecov.io/gh/Medical-Event-Data-Standard/REPO_NAME)
-[![tests](https://github.com/Medical-Event-Data-Standard/REPO_NAME/actions/workflows/tests.yaml/badge.svg)](https://github.com/Medical-Event-Data-Standard/REPO_NAME/actions/workflows/tests.yml)
-[![code-quality](https://github.com/Medical-Event-Data-Standard/REPO_NAME/actions/workflows/code-quality-main.yaml/badge.svg)](https://github.com/Medical-Event-Data-Standard/REPO_NAME/actions/workflows/code-quality-main.yaml)
-![python](https://img.shields.io/badge/-Python_3.12-blue?logo=python&logoColor=white)
-[![license](https://img.shields.io/badge/License-MIT-green.svg?labelColor=gray)](https://github.com/Medical-Event-Data-Standard/REPO_NAME#license)
-[![PRs](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/Medical-Event-Data-Standard/REPO_NAME/pulls)
-[![contributors](https://img.shields.io/github/contributors/Medical-Event-Data-Standard/REPO_NAME.svg)](https://github.com/Medical-Event-Data-Standard/REPO_NAME/graphs/contributors)
+```bash
+uv sync --group dev
+uv run pytest tests/
+uv run pre-commit run --all-files
 ```
 
-#### `tests/e2e_demo_test.py`
-
-If your dataset does not have an open demo version, you can remove this file, as there is no way to set up
-automated testing of the end-to-end pipeline in a safe manner without a demo dataset.
-
-If you do have a demo dataset, ensure that it is included in your `dataset.yaml` file and update the
-`e2e_demo_test.py` file as follows:
-
-1. Update the command in the `command_parts` variable to match the command you set in your `pyproject.toml`
-    file for the executable for your pipeline (e.g., `MIMIC-IV_extract`).
-2. Remove the `pytest.mark.skip` decorator from the test function so that it runs successfully!
-
-The test file (and the internal doctests, which can help unittest your `pre-MEDS` file) can then be run via
-`pytest --doctest-modules -s` from the root directory to ensure correctness of your pipeline. These tests will
-also be run on pull requests or pushes to the `main` branch of your repository via GitHub Actions, and test
-code coverage will be tracked via CodeCov.
-
-#### `.pre-commit-config`
-This will run pre-commit hooks on GitHub when you're creating your ETL. To locally install this, you can install the optional dependencies:
-```
- pip install ".[dev]"
-```
-Then, run:
-```
-pre-commit run --all-files
-```
-This will automatically reformat your files (if possible) to conform with the linting requirements.
-Note: currently we need pre-commit<4 to run the `docformatter` hook.
-
-### External Services
-
-#### CodeCov
-
-1. Go to [CodeCov](https://codecov.io/) and add make an account or log-in as needed.
-2. Follow the instructions to configure your new repository with CodeCov.
-3. Copy the badge markdown from CodeCov and paste it into the `README.md` file. To find the badge markdown
-    link, go to your repository in CodeCov, click on the "Configuration" tab, click on the "Badges and
-    Graphs" option, then copy the markdown link from the top section and paste it in the corresponding line
-    of the README, in place of the default link included above.
-4. It will now track the test coverage of your ETL, including running the full pipeline against the linked
-    demo data you provide in `dataset.yaml`.
-
-#### PyPI
-
-1. Go to [PyPI](https://pypi.org/) and add make an account or log-in as needed.
-2. Go to your account settings and go to the "Publishing" settings.
-3. Set up a new "Trusted Publisher" for your GitHub Repository (e.g., see the image below). Ensure your
-    package name matches in the trusted publisher and in your `pyproject.toml` file!
-4. Now, if, on the local command line, you run `git tag 0.0.1`, then `git push origin 0.0.1`, it will push a
-    new, tagged version of your code as of the local commit when you ran the command both to a new GitHub
-    Release and to PyPI. This will allow you to install your package via `pip install PACKAGE_NAME` and to manage
-    versions effectively!
-
-Example trusted publisher set-up:
-![PyPI Trusted Publisher](https://github.com/Medical-Event-Data-Standard/ETL_MEDS_Template/blob/main/static/pypi_trusted_publisher_example.png?raw=true)
+ALOTT has no open demo, so CI runs the spec end to end over a small **synthetic** input
+generated in [`tests/e2e_synthetic_test.py`](tests/e2e_synthetic_test.py). That checks the
+spec's mechanics, not its agreement with the real release. Never commit raw ALOTT data or
+MEDS output derived from it.
