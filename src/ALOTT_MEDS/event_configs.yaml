@@ -24,6 +24,10 @@
 etl:
   dataset_name: ALOTT
   n_subjects_per_shard: 1000
+  # The CSVs are read as UTF-8 (MEDS-Extract's default), which has not yet been checked
+  # against the release. If `convert_to_parquet` reports a file is not valid UTF-8, declare
+  # the release's encoding here instead (e.g. `encoding: cp1252`, common for Epic exports);
+  # never guess it, as a wrong single-byte codec decodes without error into garbled text.
 
 # `csID` is the de-identified patient key (PhysioNet's "aMRN"); `CS_PAT_ENC_CSN_ID` is the
 # de-identified encounter key ("aCSN"), carried as `hadm_id` wherever a table has one.

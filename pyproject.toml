@@ -24,7 +24,7 @@ classifiers = [
 # raw data from PhysioNet. MEDS-transforms, polars and hydra all arrive through it at the
 # versions it fences; duplicating those pins here would only create drift.
 dependencies = [
-    "meds-extract[download]>=0.7.0,<0.8",
+    "meds-extract[download]>=0.7.1,<0.8",
 ]
 
 [dependency-groups]

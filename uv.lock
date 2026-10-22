@@ -22,7 +22,7 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "meds-extract", extras = ["download"], specifier = ">=0.7.0,<0.8" }]
+requires-dist = [{ name = "meds-extract", extras = ["download"], specifier = ">=0.7.1,<0.8" }]
 
 [package.metadata.requires-dev]
 dev = [
@@ -283,7 +283,7 @@ wheels = [
 
 [[package]]
 name = "meds-extract"
-version = "0.7.0"
+version = "0.7.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "dftly" },
@@ -298,9 +298,9 @@ dependencies = [
     { name = "universal-pathlib" },
     { name = "yaml-to-disk" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f8/29/11e1d268233a7b99a945ae19a8dea44b5eaa13197ed1452d3de241ce6222/meds_extract-0.7.0.tar.gz", hash = "sha256:1ee53859e74801ddfd867b72749a894bf5b28ff47b111206b0a728a2375fe403", size = 450479, upload-time = "2026-08-07T19:03:44.958Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/6a/e6/40716e3068ae4a9f3648f8e673f4124817dea5094b5d70eb252b15cc3c52/meds_extract-0.7.1.tar.gz", hash = "sha256:088054fc23225403d85c7deea21604edc2d8be1a4aa4517765810f8bcfd4419b", size = 454767, upload-time = "2026-10-22T18:12:27.246Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/87/23/10c17cb0bbfa4b0109757d7f4cd940e502c10beeadc5184c529e6d705074/meds_extract-0.7.0-py3-none-any.whl", hash = "sha256:96accb6b84d59f461322b4a311e2fa4f3d6653dc07871000c2377ca1e33d59cb", size = 221114, upload-time = "2026-08-07T19:03:43.393Z" },
+    { url = "https://files.pythonhosted.org/packages/0f/90/3d6105949b5cce6fa7177360a68a21cb5292e6a55b6b2f8a40ff1d59342f/meds_extract-0.7.1-py3-none-any.whl", hash = "sha256:1af65f8af9995d3f33c3d0ac2f0462ded9564e8c36f745e1f5a4698b5e86c81a", size = 223190, upload-time = "2026-10-22T18:12:25.665Z" },
 ]
 
 [package.optional-dependencies]

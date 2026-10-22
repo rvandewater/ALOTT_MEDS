@@ -85,6 +85,9 @@ what makes `spec=ALOTT` work from anywhere and what stamps the output's
 > The table and column names in the spec come from the dataset authors' public release
 > code. They have not yet been checked against the files PhysioNet serves. If a run fails
 > on a missing table or column, the release renamed it and the spec needs updating.
+> Likewise, the CSVs are read as UTF-8. If `convert_to_parquet` reports that a file is not
+> valid UTF-8, set the release's actual encoding as `etl: {encoding: ...}` in the spec
+> (MEDS-Extract ≥ 0.7.1).
 
 ## Development
 
