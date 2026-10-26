@@ -8,6 +8,7 @@ resolution-markers = [
 
 [[package]]
 name = "alott-meds"
+version = "0.0.1"
 source = { editable = "." }
 dependencies = [
     { name = "meds-extract", extra = ["download"] },

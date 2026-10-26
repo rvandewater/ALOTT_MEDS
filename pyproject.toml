@@ -1,10 +1,11 @@
 [build-system]
-requires = ["setuptools>=64", "setuptools-scm>=8.0", "wheel"]
+requires = ["setuptools>=64", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "ALOTT-MEDS"
-dynamic = ["version"]
+# Bump with `uv version --bump patch|minor|major`, then tag the commit with the same version.
+version = "0.0.1"
 authors = [
   { name="Robin van de Water", email="rpv2114@cumc.columbia.edu" },
 ]
@@ -36,8 +37,6 @@ dev = [
     "pytest~=9.0",
     "shfmt-py==3.12.0.2",
 ]
-
-[tool.setuptools_scm]
 
 [project.entry-points."MEDS_extract.pipelines"]
 ALOTT = "ALOTT_MEDS:event_configs.yaml"
