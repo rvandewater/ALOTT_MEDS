@@ -63,31 +63,62 @@ what makes `spec=ALOTT` work from anywhere and what stamps the output's
 ## Modelling decisions
 
 - **Timestamps.** ALOTT shifts each patient's dates by a random -180..180 days but keeps
-    the time of day, and stores every timestamp as a shifted date column plus a separate
-    `HH:MM:SS` column. The spec recombines the two before parsing; a row missing either
-    half produces no event.
-- **IDs.** `csID` (PhysioNet's aMRN) is the MEDS `subject_id`; the encounter key
-    (`CS_PAT_ENC_CSN_ID`, aCSN) is carried as `hadm_id`. Labs and orders use the
-    resulting/ordering encounter respectively.
+    the time of day. Most tables store each timestamp as one shifted `%Y-%m-%d %H:%M:%S`
+    column. Labs and orders carry only a shifted date, so their events are placed at the
+    end of that day (23:59:59): midnight would make a result visible before it existed.
+    Same-day lab orders and results therefore share a time. A row with a null timestamp
+    produces no event.
+- **IDs.** `aMRN` is the MEDS `subject_id`; the encounter key `aCSN` is carried as
+    `hadm_id`. Lab results use the resulting encounter and lab/other orders the ordering
+    one; the release's `nan` placeholder for an unresulted encounter becomes a null.
 - **Diagnoses.** The primary and secondary ICD-10 codes on each visit become
     `DIAGNOSIS//ICD//10//<code>` events at discharge time, with `diagnosis_rank` set to
-    `PRIMARY` or `SECONDARY` and parent code `ICD10CM/<code>`.
+    `PRIMARY` or `SECONDARY`. No `parent_codes` metadata is attached: the same code occurs
+    as both primary and secondary, and MEDS-Extract rejects one code produced by two code
+    templates. `DIAGNOSIS//ICD//10//<code>` maps to `ICD10CM/<code>` directly.
+- **ICU stays and bed moves** carry only their start and end times in the release (no
+    unit, room or bed), so they become bare `ICU_ADMISSION`, `ICU_DISCHARGE` and
+    `TRANSFER` events.
 - **Demographics and allergies** carry no time in the release and are static events.
     Missing demographics produce no event rather than an `…//UNK` code.
 - **Flowsheet and lab values** are free text. The numeric reading is kept where it parses,
     and the raw string is always kept in `text_value`.
 - **Not extracted:** the telemetry (alarms, 2-second measurements, waveforms; per-admission
-    files keyed by file name, far larger than the EMR), `SocialHx` (no event times and
-    unlabeled Epic category codes), and medication administrations (`MAR_TAKEN_TIME` is
-    not date-shifted in the authors' release code).
+    files keyed by file name, far larger than the EMR), `social_hx` (no event times and
+    unlabeled Epic category codes), and medication administrations
+    (`OffsetMAR_TAKEN_TIME`; not emitted yet).
 
-> [!WARNING]
-> The table and column names in the spec come from the dataset authors' public release
-> code. They have not yet been checked against the files PhysioNet serves. If a run fails
-> on a missing table or column, the release renamed it and the spec needs updating.
-> Likewise, the CSVs are read as UTF-8. If `convert_to_parquet` reports that a file is not
-> valid UTF-8, set the release's actual encoding as `etl: {encoding: ...}` in the spec
-> (MEDS-Extract ≥ 0.7.1).
+> [!NOTE]
+> The table and column names in the spec were checked against the ten EMR CSVs of the
+> 1.0.0 release (`admission.csv`, `labs.csv`, ...; all valid UTF-8). The folder they sit
+> in on PhysioNet, assumed to be `emr-datasets/`, has not been checked against a download.
+> If your copy is a flat folder of these CSVs, point `input_dir` at a directory holding an
+> `emr-datasets` link to it.
+
+## Validation against the release
+
+The spec was first written from the authors' release code and did not run on the published
+files. Profiling the 1.0.0 EMR CSVs (value *shapes* and null counts only, never values)
+showed what had to change:
+
+- Tables are lowercase (`admission`, `labs`, ...) rather than `Patient`, `Labs`, ...; the
+    keys are `aMRN` and `aCSN`, not `csID` and `CS_PAT_ENC_CSN_ID`.
+- Each timestamp is one already-shifted column rather than a date plus an `HH:MM:SS`
+    column. Labs and orders keep only the date, which the spec now places at 23:59:59 to
+    avoid future leakage (see *Timestamps* above).
+- `icu` and `location` have no department, event type, room or bed columns.
+- `resulting_aCSN` holds the string `nan` for unresulted rows; cast leniently to an
+    integer so `hadm_id` stays `Int64`.
+- 1,574 ICD-10 codes occur as both primary and secondary diagnoses, which MEDS-Extract
+    rejects when both events attach code metadata, so diagnosis `parent_codes` were dropped.
+    The synthetic test now covers this collision.
+
+On a local copy of the 1.0.0 EMR tables (4.8 GB of CSVs), `meds-extract-run` with MEDS-Extract 0.7.1
+finishes in about a minute with about 3.2 GB peak memory, producing 36.5M events for 18,472
+subjects. Fewer lab, order and medication events come out than raw rows because identical
+events (same subject, time and code) are merged: lab and order times have day
+resolution, and the medication table repeats an order's start and end on every
+administration row.
 
 ## Development
 

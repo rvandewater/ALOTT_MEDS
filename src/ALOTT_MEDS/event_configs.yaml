@@ -10,70 +10,62 @@
 # IDs live in the *file name*, not in a column, and they are several orders of magnitude
 # larger; they are out of scope for this spec.
 #
-# SCHEMA PROVENANCE — read before trusting a table below. The table and column names are taken
-# from the dataset authors' public release code (github.com/johnclawrence/Carescape,
-# `Processing Code/Step5-EMRMapping.ipynb`), which writes exactly these columns. They have not
-# yet been checked against the files PhysioNet serves; if a run fails on a missing table or
-# column, the published release renamed it, and the fix belongs here.
+# SCHEMA PROVENANCE. The table and column names below were checked against the ten EMR CSVs
+# of the 1.0.0 release (`admission.csv`, `labs.csv`, ...). They differ from the dataset
+# authors' release code (github.com/johnclawrence/Carescape): the published files use
+# `aMRN`/`aCSN` as keys and carry each timestamp in a single already-shifted column. The
+# name of the folder the EMR CSVs sit in on PhysioNet (`emr-datasets/` here) has not been
+# checked against a download.
 #
 # Date shifting: every patient's dates are shifted by a random -180..180 days, time of day is
-# not. The release therefore stores each timestamp as a shifted date column plus a separate
-# `HH:MM:SS` column, which every event below recombines with an f-string before parsing. Rows
-# with either half null get a null time and are dropped.
+# not. Most timestamps are `%Y-%m-%d %H:%M:%S`; labs and orders carry only a shifted *date*,
+# so their events are placed at the end of that day (23:59:59). Midnight would make a result
+# visible before it existed (future leakage for any prediction made later that day).
 
 etl:
   dataset_name: ALOTT
-  n_subjects_per_shard: 1000
-  # The CSVs are read as UTF-8 (MEDS-Extract's default), which has not yet been checked
-  # against the release. If `convert_to_parquet` reports a file is not valid UTF-8, declare
-  # the release's encoding here instead (e.g. `encoding: cp1252`, common for Epic exports);
-  # never guess it, as a wrong single-byte codec decodes without error into garbled text.
+  n_subjects_per_shard: 10000
 
-# `csID` is the de-identified patient key (PhysioNet's "aMRN"); `CS_PAT_ENC_CSN_ID` is the
-# de-identified encounter key ("aCSN"), carried as `hadm_id` wherever a table has one.
+# `aMRN` is the de-identified patient key; `aCSN` is the de-identified encounter key, carried
+# as `hadm_id` wherever a table has one.
 _defaults:
-  subject_id: $csID
+  subject_id: $aMRN
 
-emr-datasets/Patient:
+emr-datasets/admission:
   # One row per hospital visit.
   admission:
     code: f"HOSPITAL_ADMISSION//{$Admission_Type ?? 'UNK'}//{$Admit_Source ?? 'UNK'}"
-    time: 'f"{$offsetHospAdmsnDate} {$offsetHospAdmsnTime}"::"%Y-%m-%d %H:%M:%S"'
-    hadm_id: $CS_PAT_ENC_CSN_ID
+    time: '$admsnOffset::"%Y-%m-%d %H:%M:%S"'
+    hadm_id: $aCSN
     text_value: $REASON_VISIT_NAME
   discharge:
     code: f"HOSPITAL_DISCHARGE//{$Discharge_Destination ?? 'UNK'}"
-    time: 'f"{$offsetHospDischDate} {$offsetHospDischTime}"::"%Y-%m-%d %H:%M:%S"'
-    hadm_id: $CS_PAT_ENC_CSN_ID
+    time: '$dischOffset::"%Y-%m-%d %H:%M:%S"'
+    hadm_id: $aCSN
   # Diagnoses are only known at the end of the visit, so they are timed at discharge (as in
-  # MIMIC-IV MEDS). The release's codes are already dotted ICD-10-CM, so the parent is the
-  # code verbatim. The free-text name rides in `text_value` rather than `description`: it is
-  # per-visit text, not guaranteed to be a function of the code.
+  # MIMIC-IV MEDS). The free-text name rides in `text_value` rather than `description`: it is
+  # per-visit text, not guaranteed to be a function of the code. No `parent_codes` metadata:
+  # the same ICD code occurs in both columns, and MEDS-Extract refuses a code produced by two
+  # code templates. The codes are already dotted ICD-10-CM, so `DIAGNOSIS//ICD//10//<code>`
+  # maps to `ICD10CM/<code>` directly.
   primary_diagnosis:
     code: f"DIAGNOSIS//ICD//10//{$Primary_ICD10}"
-    time: 'f"{$offsetHospDischDate} {$offsetHospDischTime}"::"%Y-%m-%d %H:%M:%S"'
-    hadm_id: $CS_PAT_ENC_CSN_ID
+    time: '$dischOffset::"%Y-%m-%d %H:%M:%S"'
+    hadm_id: $aCSN
     text_value: $Primary_Diagnosis
     diagnosis_rank: "'PRIMARY'"
-    _metadata:
-      _self:
-        parent_codes: f"ICD10CM/{$Primary_ICD10}"
   secondary_diagnosis:
     code: f"DIAGNOSIS//ICD//10//{$Secondary_ICD10}"
-    time: 'f"{$offsetHospDischDate} {$offsetHospDischTime}"::"%Y-%m-%d %H:%M:%S"'
-    hadm_id: $CS_PAT_ENC_CSN_ID
+    time: '$dischOffset::"%Y-%m-%d %H:%M:%S"'
+    hadm_id: $aCSN
     text_value: $Secondary_Diagnosis
     diagnosis_rank: "'SECONDARY'"
-    _metadata:
-      _self:
-        parent_codes: f"ICD10CM/{$Secondary_ICD10}"
 
-emr-datasets/Demographics:
+emr-datasets/demographics:
   # Subject-level properties, so static (null time). The table is keyed per encounter, so a
   # subject contributes one row per visit; identical static events are deduplicated
   # downstream. Nulls are deliberately not coalesced: a missing demographic produces no
-  # event rather than a `RACE//UNK` code that would read as an observed category. `Age` is
-  # not populated in the release and is omitted.
+  # event rather than a `RACE//UNK` code that would read as an observed category.
   gender:
     code: f"GENDER//{$Gender}"
     time: null
@@ -93,21 +85,21 @@ emr-datasets/Demographics:
     code: f"BLOOD_TYPE//{$ABO_RH_Blood_Type}"
     time: null
 
-emr-datasets/Allergies:
+emr-datasets/allergy:
   # The release carries no time for allergies, so they are static.
   allergy:
     code: f"ALLERGY//{$Allergy}"
     time: null
     text_value: $Allergy_Reaction
 
-emr-datasets/Flowsheet:
+emr-datasets/flowsheet:
   # Provider-charted vitals, risk scores and rapid-response events. `MEAS_VALUE` is free
   # text; `::?float64` keeps the numeric reading where there is one and null otherwise, and
   # the raw string is always kept in `text_value`.
   flowsheet:
     code: f"FLOWSHEET//{$FLO_MEAS_ID}"
-    time: 'f"{$offsetDate} {$offsetTime}"::"%Y-%m-%d %H:%M:%S"'
-    hadm_id: $CS_PAT_ENC_CSN_ID
+    time: '$recordedOffsetDate::"%Y-%m-%d %H:%M:%S"'
+    hadm_id: $aCSN
     numeric_value: $MEAS_VALUE::?float64
     text_value: $MEAS_VALUE
     flow_type: $Flow_Type
@@ -115,56 +107,55 @@ emr-datasets/Flowsheet:
       _self:
         description: coalesce($disp_name, $flo_meas_name)
 
-emr-datasets/ICU:
+emr-datasets/icu:
+  # The release keeps only the ICU stay's times, not which unit it was.
   icu_admission:
-    code: f"ICU_ADMISSION//{$DEPARTMENT_NAME ?? 'UNK'}"
-    time: 'f"{$offsetStartDate} {$offsetStartTime}"::"%Y-%m-%d %H:%M:%S"'
-    hadm_id: $CS_PAT_ENC_CSN_ID
+    code: "'ICU_ADMISSION'"
+    time: '$startOffsetDate::"%Y-%m-%d %H:%M:%S"'
+    hadm_id: $aCSN
   icu_discharge:
-    code: f"ICU_DISCHARGE//{$DEPARTMENT_NAME ?? 'UNK'}"
-    time: 'f"{$offsetEndDate} {$offsetEndTime}"::"%Y-%m-%d %H:%M:%S"'
-    hadm_id: $CS_PAT_ENC_CSN_ID
+    code: "'ICU_DISCHARGE'"
+    time: '$endOffsetDate::"%Y-%m-%d %H:%M:%S"'
+    hadm_id: $aCSN
 
-emr-datasets/Location:
-  # Bed-level movement. Bed and room IDs are kept as extension columns rather than code
-  # components: they would mint one code per bed without saying anything clinical.
+emr-datasets/location:
+  # Bed-level movement. The release keeps only each stay's start and end, not the department,
+  # room or bed, so a transfer is just the moment the patient moved.
   transfer:
-    code: f"TRANSFER_TO//{$IN_Event_Type ?? 'UNK'}//{$DEPARTMENT_NAME ?? 'UNK'}"
-    time: 'f"{$offsetStartDate} {$offsetStartTime}"::"%Y-%m-%d %H:%M:%S"'
-    hadm_id: $CS_PAT_ENC_CSN_ID
-    bed_id: $BED_ID
-    room_id: $ROOM_ID
+    code: "'TRANSFER'"
+    time: '$startOffsetDate::"%Y-%m-%d %H:%M:%S"'
+    hadm_id: $aCSN
 
-emr-datasets/Medications:
-  # `MAR_TAKEN_TIME` is not date-shifted in the authors' release code, so it is not used as
-  # an event time; administrations are not emitted separately until that is resolved.
+emr-datasets/medications:
+  # Administrations (`OffsetMAR_TAKEN_TIME`) are not emitted yet.
   medication_start:
     code: f"MEDICATION//START//{$MEDICATION}"
-    time: 'f"{$offsetStartDate} {$offsetStartTime}"::"%Y-%m-%d %H:%M:%S"'
-    hadm_id: $CS_PAT_ENC_CSN_ID
+    time: '$startOffsetDate::"%Y-%m-%d %H:%M:%S"'
+    hadm_id: $aCSN
     numeric_value: $HV_DISCRETE_DOSE::?float64
     dose_unit: $HV_DISCRET_DOSE_UNIT
     frequency: $FREQUENCY
     route: $MAR_ROUTE
   medication_stop:
     code: f"MEDICATION//STOP//{$MEDICATION}"
-    time: 'f"{$offsetEndDate} {$offsetEndTime}"::"%Y-%m-%d %H:%M:%S"'
-    hadm_id: $CS_PAT_ENC_CSN_ID
+    time: '$endOffsetDate::"%Y-%m-%d %H:%M:%S"'
+    hadm_id: $aCSN
 
-emr-datasets/Labs:
+emr-datasets/labs:
   # Ordering and resulting encounters can differ; the resulting one is the visit the value
-  # belongs to.
+  # belongs to. Unresulted rows carry the string `nan` as their resulting encounter, which the
+  # lenient cast turns into a null (and keeps `hadm_id` an integer across tables).
   lab_ordered:
     code: f"LAB//ORDERED//{$PROC_ID}"
-    time: 'f"{$offsetOrderDate} {$offsetOrderTime}"::"%Y-%m-%d %H:%M:%S"'
-    hadm_id: $Ordering_CSN
+    time: 'f"{$orderingOffsetDate} 23:59:59"::"%Y-%m-%d %H:%M:%S"'
+    hadm_id: $ordering_aCSN
     _metadata:
       _self:
         description: $DESCRIPTION
   lab_result:
     code: f"LAB//RESULT//{$PROC_ID}//{$COMPONENT_NAME ?? 'UNK'}"
-    time: 'f"{$offsetResultDate} {$offsetResultTime}"::"%Y-%m-%d %H:%M:%S"'
-    hadm_id: $Resulting_CSN
+    time: 'f"{$resultsOffsetDate} 23:59:59"::"%Y-%m-%d %H:%M:%S"'
+    hadm_id: $resulting_aCSN::?int64
     numeric_value: "$ORD_NUM_VALUE::?float64 if $ORD_NUM_VALUE != 9999999"
     text_value: $ORD_VALUE
     order_status: $order_status
@@ -172,17 +163,17 @@ emr-datasets/Labs:
       _self:
         description: f"{$DESCRIPTION} - {$COMPONENT_NAME}"
 
-emr-datasets/Orders:
+emr-datasets/orders:
   order:
     code: f"ORDER//{$Order_type ?? 'UNK'}//{$PROC_ID}"
-    time: 'f"{$offsetOrderDate} {$offsetOrderTime}"::"%Y-%m-%d %H:%M:%S"'
-    hadm_id: $Ordering_CSN
+    time: 'f"{$orderingOffsetDate} 23:59:59"::"%Y-%m-%d %H:%M:%S"'
+    hadm_id: $ordering_aCSN
     order_status: $order_status
     _metadata:
       _self:
         description: $DESCRIPTION
 
-# `emr-datasets/SocialHx` (tobacco / alcohol / drug use) is not extracted: it has no event
+# `emr-datasets/social_hx` (tobacco / alcohol / drug use) is not extracted: it has no event
 # time other than quit dates, and its `*_C` columns are Epic category codes whose labels are
 # not in the release.
 
