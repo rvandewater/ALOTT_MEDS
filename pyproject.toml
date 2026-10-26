@@ -45,6 +45,11 @@ ALOTT = "ALOTT_MEDS:event_configs.yaml"
 Homepage = "https://github.com/rvandewater/ALOTT_MEDS"
 Issues = "https://github.com/rvandewater/ALOTT_MEDS/issues"
 
+[tool.setuptools.package-data]
+# The MESSY spec is the whole ETL. setuptools-scm used to ship it implicitly (as a git-tracked file);
+# with a static version it has to be listed, or installed wheels lack it.
+ALOTT_MEDS = ["event_configs.yaml"]
+
 [tool.ruff]
 target-version = "py311"
 line-length = 110
