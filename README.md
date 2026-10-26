@@ -1,12 +1,18 @@
 # ALOTT-MEDS
 
-[![tests](https://github.com/rvandewater/ALOTT_MEDS/actions/workflows/tests.yaml/badge.svg)](https://github.com/rvandewater/ALOTT_MEDS/actions/workflows/tests.yaml)
+<!-- Placeholders until available: the PyPI badges resolve once ALOTT-MEDS is published; replace
+CODECOV_TOKEN_PLACEHOLDER with the repo's Codecov badge token and zenodo.XXXXXXX with its Zenodo DOI. -->
+
+[![PyPI - Version](https://img.shields.io/pypi/v/ALOTT-MEDS)](https://pypi.org/project/ALOTT-MEDS/)
+[![codecov](https://codecov.io/gh/rvandewater/ALOTT_MEDS/graph/badge.svg?token=CODECOV_TOKEN_PLACEHOLDER)](https://codecov.io/gh/rvandewater/ALOTT_MEDS)
+[![tests](https://github.com/rvandewater/ALOTT_MEDS/actions/workflows/synthetic-etl.yaml/badge.svg)](https://github.com/rvandewater/ALOTT_MEDS/actions/workflows/synthetic-etl.yaml)
 [![code-quality](https://github.com/rvandewater/ALOTT_MEDS/actions/workflows/code-quality-main.yaml/badge.svg)](https://github.com/rvandewater/ALOTT_MEDS/actions/workflows/code-quality-main.yaml)
 ![python](https://img.shields.io/badge/python-%3E%3D3.11.4%2C%20%3C3.14-blue?logo=python&logoColor=white)
 ![Static Badge](https://img.shields.io/badge/MEDS-0.4.1-blue)
-[![license](https://img.shields.io/badge/License-MIT-green.svg?labelColor=gray)](LICENSE)
+[![license](https://img.shields.io/badge/License-MIT-green.svg?labelColor=gray)](https://github.com/rvandewater/ALOTT_MEDS#license)
 [![PRs](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/rvandewater/ALOTT_MEDS/pulls)
 [![contributors](https://img.shields.io/github/contributors/rvandewater/ALOTT_MEDS.svg)](https://github.com/rvandewater/ALOTT_MEDS/graphs/contributors)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.XXXXXXX.svg)](https://doi.org/10.5281/zenodo.XXXXXXX)
 
 ALOTT (ALarms, Outcomes Telemetry with Timing) is a pilot bedside-EMR database from two
 hospitals, collected to support algorithms that predict emergency response team events. It

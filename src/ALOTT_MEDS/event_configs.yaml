@@ -144,17 +144,18 @@ emr-datasets/medications:
 emr-datasets/labs:
   # Ordering and resulting encounters can differ; the resulting one is the visit the value
   # belongs to. Unresulted rows carry the string `nan` as their resulting encounter, which the
-  # lenient cast turns into a null (and keeps `hadm_id` an integer across tables).
+  # lenient cast turns into a null (and keeps `hadm_id` an integer across tables). The end-of-day
+  # time is attached with `date @ time` rather than an f-string so MESSY-synth can type the column.
   lab_ordered:
     code: f"LAB//ORDERED//{$PROC_ID}"
-    time: 'f"{$orderingOffsetDate} 23:59:59"::"%Y-%m-%d %H:%M:%S"'
+    time: '$orderingOffsetDate::"%Y-%m-%d" @ 23:59:59'
     hadm_id: $ordering_aCSN
     _metadata:
       _self:
         description: $DESCRIPTION
   lab_result:
     code: f"LAB//RESULT//{$PROC_ID}//{$COMPONENT_NAME ?? 'UNK'}"
-    time: 'f"{$resultsOffsetDate} 23:59:59"::"%Y-%m-%d %H:%M:%S"'
+    time: '$resultsOffsetDate::"%Y-%m-%d" @ 23:59:59'
     hadm_id: $resulting_aCSN::?int64
     numeric_value: "$ORD_NUM_VALUE::?float64 if $ORD_NUM_VALUE != 9999999"
     text_value: $ORD_VALUE
@@ -166,7 +167,7 @@ emr-datasets/labs:
 emr-datasets/orders:
   order:
     code: f"ORDER//{$Order_type ?? 'UNK'}//{$PROC_ID}"
-    time: 'f"{$orderingOffsetDate} 23:59:59"::"%Y-%m-%d %H:%M:%S"'
+    time: '$orderingOffsetDate::"%Y-%m-%d" @ 23:59:59'
     hadm_id: $ordering_aCSN
     order_status: $order_status
     _metadata:
