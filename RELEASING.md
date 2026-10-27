@@ -27,8 +27,8 @@ the spec targets a new PhysioNet release, and release the package with at least 
 To see the last release and what the current commit would build as:
 
 ```bash
-git describe --tags --abbrev=0                      # last release tag
-uvx --from setuptools-scm python -m setuptools_scm  # e.g. 0.0.3.dev2+g113c173
+git describe --tags --abbrev=0                     # last release tag
+uvx --from setuptools-scm python -m setuptools_scm # e.g. 0.0.3.dev2+g113c173
 ```
 
 ## One-time setup (before the first release)
@@ -83,8 +83,10 @@ and add yourself as a required reviewer.
 
     ```bash
     uv run --no-project --with ALOTT-MEDS==0.0.2 python -c \
-        "import importlib.metadata as m; print(m.version('ALOTT-MEDS'))"
+    	"import importlib.resources as r; print(r.files('ALOTT_MEDS').joinpath('event_configs.yaml').is_file())"
     ```
+
+    It must print `True`: a wheel without the spec cannot run `meds-extract-run spec=ALOTT`.
 
 6. First release only: if the repository is connected to Zenodo, the GitHub release mints a
     DOI. Replace the `zenodo.XXXXXXX` placeholders in the README badge with it.
