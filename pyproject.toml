@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "ALOTT-MEDS"
 # The last released version. A release bumps it with `uv version --bump` and tags the commit with
 # the result (see RELEASING.md); CI refuses a tag that differs from it. 0.0.0 = nothing released yet.
-version = "0.0.0"
+version = "0.0.1"
 authors = [
   { name="Robin van de Water", email="rpv2114@cumc.columbia.edu" },
 ]
