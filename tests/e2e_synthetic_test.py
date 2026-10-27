@@ -29,138 +29,112 @@ N_SUBJECTS = 10
 
 def _visit_rows(subject: int) -> dict:
     """The two IDs and an admission-day date every per-visit table hangs off."""
-    return {"csID": subject, "CS_PAT_ENC_CSN_ID": 1000 + subject, "day": f"2020-01-{subject + 1:02d}"}
+    return {"aMRN": subject, "aCSN": 1000 + subject, "day": f"2020-01-{subject + 1:02d}"}
 
 
 def write_synthetic_input(root: Path) -> None:
     emr = root / "emr-datasets"
     emr.mkdir(parents=True)
     visits = [_visit_rows(s) for s in range(1, N_SUBJECTS + 1)]
-    ids = {"csID": [v["csID"] for v in visits], "CS_PAT_ENC_CSN_ID": [v["CS_PAT_ENC_CSN_ID"] for v in visits]}
+    ids = {"aMRN": [v["aMRN"] for v in visits], "aCSN": [v["aCSN"] for v in visits]}
     days = [v["day"] for v in visits]
-    csns = ids["CS_PAT_ENC_CSN_ID"]
+    csns = ids["aCSN"]
     n = len(visits)
 
+    def at(hms: str) -> list[str]:
+        return [f"{d} {hms}" for d in days]
+
     tables = {
-        "Patient": {
+        "admission": {
             **ids,
+            "admsnOffset": at("08:00:00"),
+            "dischOffset": at("20:00:00"),
             "Admission_Type": ["EMERGENCY"] * n,
             "Admit_Source": ["HOME", None] * (n // 2),
-            "LOS_Hours": ["48"] * n,
+            "LOS_Hours": [12] * n,
             "REASON_VISIT_NAME": ["CHEST PAIN"] * n,
-            "offsetHospAdmsnDate": days,
-            "offsetHospAdmsnTime": ["08:00:00"] * n,
-            "offsetHospDischDate": days,
-            "offsetHospDischTime": ["20:00:00"] * n,
             "Discharge_Destination": ["HOME"] * n,
-            "Primary_ICD10": ["I50.23"] * n,
+            # Some cells list several codes; each becomes its own diagnosis event.
+            "Primary_ICD10": ["I50.23", "I50.23, I10"] * (n // 2),
             "Primary_Diagnosis": ["Acute on chronic systolic heart failure"] * n,
-            "Secondary_ICD10": ["Z95.2", None] * (n // 2),
+            "Secondary_ICD10": ["I50.23", None] * (n // 2),
             "Secondary_Diagnosis": ["Presence of prosthetic heart valve", None] * (n // 2),
         },
-        "Demographics": {
+        "demographics": {
             **ids,
             "Gender": ["M", "F"] * (n // 2),
-            "Age": [None] * n,
             "Marital_Status": ["Single"] * n,
             "Patient_Race": ["Other", None] * (n // 2),
             "Ethnicity": ["Unknown"] * n,
             "Preferred_Language": ["English"] * n,
             "ABO_RH_Blood_Type": ["O Pos"] * n,
         },
-        "Allergies": {**ids, "Allergy": ["PENICILLIN"] * n, "Allergy_Reaction": ["Rash"] * n},
-        "Flowsheet": {
+        "allergy": {**ids, "Allergy": ["PENICILLIN"] * n, "Allergy_Reaction": ["Rash"] * n},
+        "flowsheet": {
             **ids,
             "FLO_MEAS_ID": ["8"] * n,
             "flo_meas_name": ["PULSE"] * n,
             "disp_name": ["Pulse"] * n,
-            "MEAS_VALUE": ["72", "irregular"] * (n // 2),
+            # Scored scale items are charted as `<score>--><label>`.
+            "MEAS_VALUE": ["72", "irregular", "-1-->Drowsy", "98.6", "2-->Some help"] * (n // 5),
             "MEAS_COMMENT": [None] * n,
-            "offsetDate": days,
-            "offsetTime": ["09:00:00"] * n,
-            "fsd_id": list(range(n)),
+            "recordedOffsetDate": at("09:00:00"),
+            "aFSD": list(range(n)),
             "Flow_Type": ["Vitals"] * n,
         },
-        "ICU": {
+        "icu": {**ids, "startOffsetDate": at("10:00:00"), "endOffsetDate": at("18:00:00"), "LOS": [480] * n},
+        "location": {
             **ids,
-            "event_id": list(range(n)),
-            "IN_Event_Type": ["Transfer In"] * n,
-            "DEPARTMENT_ID": [1] * n,
-            "DEPARTMENT_NAME": ["CARDIAC ICU"] * n,
-            "offsetStartDate": days,
-            "offsetStartTime": ["10:00:00"] * n,
-            "offsetEndDate": days,
-            "offsetEndTime": ["18:00:00"] * n,
-            "OUT_Event_Type": ["Transfer Out"] * n,
-            "LOS": [8] * n,
+            "startOffsetDate": at("08:30:00"),
+            "endOffsetDate": at("10:00:00"),
+            "LOS": [90] * n,
         },
-        "Location": {
-            **ids,
-            "event_id": list(range(n)),
-            "IN_Event_Type": ["Admission"] * n,
-            "DEPARTMENT_ID": [2] * n,
-            "DEPARTMENT_NAME": ["WARD A"] * n,
-            "BED_ID": ["B1"] * n,
-            "ROOM_ID": ["R1"] * n,
-            "offsetStartDate": days,
-            "offsetStartTime": ["08:30:00"] * n,
-            "offsetEndDate": days,
-            "offsetEndTime": ["10:00:00"] * n,
-            "OUT_Event_Type": ["Transfer Out"] * n,
-            "LOS": [2] * n,
-        },
-        "Medications": {
+        "medications": {
             **ids,
             "MEDICATION": ["FUROSEMIDE 40 MG TAB"] * n,
-            "offsetOrderingDate": days,
-            "offsetStartDate": days,
-            "offsetStartTime": ["11:00:00"] * n,
-            "offsetEndDate": days,
-            "offsetEndTime": [None, "19:00:00"] * (n // 2),
+            # Order start and end are datetimes in form but always midnight in the release.
+            "orderingOffsetDate": at("00:00:00"),
+            "startOffsetDate": at("00:00:00"),
+            "endOffsetDate": [None, *at("00:00:00")[1:]],
             "ORDERING_MODE": ["Inpatient"] * n,
-            "HV_DISCRETE_DOSE": ["40"] * n,
+            "HV_DISCRETE_DOSE": ["40", "1-2"] * (n // 2),
             "HV_DISCRET_DOSE_UNIT": ["mg"] * n,
             "FREQUENCY": ["DAILY"] * n,
             "MAR_DOSE": ["40"] * n,
             "MAR_DOSE_UNIT": ["mg"] * n,
-            "MAR_TAKEN_TIME": [None] * n,
-            "MAR_ACTION": ["Given"] * n,
+            "OffsetMAR_TAKEN_TIME": at("11:05:00"),
+            "MAR_ACTION": ["Given", None] * (n // 2),
             "MAR_ROUTE": ["Oral"] * n,
         },
-        "Labs": {
-            "csID": ids["csID"],
+        # Unresulted lab/order rows carry the literal string `nan` as their resulting encounter.
+        "labs": {
+            "aMRN": ids["aMRN"],
             "Order_type": ["Lab"] * n,
             "DESCRIPTION": ["BASIC METABOLIC PANEL"] * n,
             "PROC_ID": ["101"] * n,
             "COMPONENT_NAME": ["SODIUM"] * n,
             "ORDER_STATUS_C": [5] * n,
             "order_status": ["Completed"] * n,
-            "offsetOrderDate": days,
-            "offsetOrderTime": ["09:30:00"] * n,
-            "offsetResultDate": days,
-            "offsetResultTime": ["10:30:00"] * n,
+            "orderingOffsetDate": days,
+            "resultsOffsetDate": [None, *days[1:]],
             "ORD_NUM_VALUE": ["140", "9999999"] * (n // 2),
             "ORD_VALUE": ["140", "see comment"] * (n // 2),
-            "COMPONENT_COMMENT": [None] * n,
-            "Ordering_CSN": csns,
-            "Resulting_CSN": csns,
+            "ordering_aCSN": csns,
+            "resulting_aCSN": ["nan", *map(str, csns[1:])],
         },
-        "Orders": {
-            "csID": ids["csID"],
-            "Order_type": ["Imaging"] * n,
-            "DESCRIPTION": ["XR CHEST 1 VIEW"] * n,
+        "orders": {
+            "aMRN": ids["aMRN"],
+            "ordering_aCSN": csns,
+            "resulting_aCSN": ["nan", *map(str, csns[1:])],
+            "Order_type": ["Point of Care"] * n,
+            "DESCRIPTION": ["POC GLUCOSE"] * n,
             "PROC_ID": ["202"] * n,
             "ORDER_STATUS_C": [5] * n,
             "order_status": ["Completed"] * n,
-            "offsetOrderDate": days,
-            "offsetOrderTime": ["12:00:00"] * n,
-            "offsetResultDate": days,
-            "offsetResultTime": ["13:00:00"] * n,
-            "ORD_NUM_VALUE": [None] * n,
-            "ORD_VALUE": [None] * n,
-            "COMPONENT_COMMENT": [None] * n,
-            "Ordering_CSN": csns,
-            "Resulting_CSN": csns,
+            "orderingOffsetDate": days,
+            "resultsOffsetDate": [None, *days[1:]],
+            "ORD_NUM_VALUE": [None, *["9999999", "105"] * (n // 2)][:n],
+            "ORD_VALUE": [None, *["see comment", "105"] * (n // 2)][:n],
         },
     }
     for name, cols in tables.items():
@@ -212,21 +186,43 @@ def test_e2e_synthetic():
         prefixes = data["code"].str.split("//").list.first().unique().to_list()
         expected = {
             "HOSPITAL_ADMISSION", "HOSPITAL_DISCHARGE", "DIAGNOSIS", "GENDER", "ALLERGY", "FLOWSHEET",
-            "ICU_ADMISSION", "ICU_DISCHARGE", "TRANSFER_TO", "MEDICATION", "LAB", "ORDER",
+            "ICU_ADMISSION", "ICU_DISCHARGE", "TRANSFER", "MEDICATION", "LAB", "ORDER",
         }  # fmt: skip
         assert expected <= set(prefixes), f"missing event families: {expected - set(prefixes)}"
 
-        # Date and time columns are recombined, not just the date parsed.
+        # Full timestamps keep their time of day.
         admits = data.filter(pl.col("code").str.starts_with("HOSPITAL_ADMISSION"))
         assert (admits["time"].dt.hour() == 8).all()
+
+        # Date-only lab, order and medication start/stop times sit at the end of the day, never
+        # before the event happened. Administrations keep their time of day.
+        dated = data.filter(pl.col("code").str.contains(r"^(LAB|ORDER|MEDICATION//(START|STOP))//"))
+        assert dated.height and (dated["time"].dt.strftime("%H:%M:%S") == "23:59:59").all()
+        mar = data.filter(pl.col("code").str.starts_with("MEDICATION//MAR//"))
+        assert mar.height == N_SUBJECTS and (mar["time"].dt.strftime("%H:%M") == "11:05").all()
+        assert mar["code"].str.ends_with("//UNK").sum() == N_SUBJECTS // 2
+
+        # Each code in a listed diagnosis cell is its own event.
+        primary = data.filter(pl.col("diagnosis_rank") == "PRIMARY")
+        assert sorted(primary["code"].unique()) == ["DIAGNOSIS//ICD//10//I10", "DIAGNOSIS//ICD//10//I50.23"]
+
+        # Order results are extracted with the same sentinels as labs.
+        results = data.filter(pl.col("code").str.starts_with("ORDER//RESULT//"))
+        assert results.height == N_SUBJECTS - 1
+        assert results.filter(pl.col("text_value") == "see comment")["numeric_value"].is_null().all()
+        assert (results["numeric_value"].drop_nulls() == 105).all()
 
         # Free-text values keep their numeric reading only where they have one. Epic uses
         # ORD_NUM_VALUE=9999999 when a lab result is non-numeric; that sentinel must stay null.
         flows = data.filter(pl.col("code") == "FLOWSHEET//8")
-        assert flows["numeric_value"].null_count() == N_SUBJECTS // 2
+        assert flows["numeric_value"].null_count() == N_SUBJECTS // 5
+        scored = flows.filter(pl.col("text_value").str.contains("-->"))
+        assert sorted(scored["numeric_value"]) == [-1, -1, 2, 2]
+        starts = data.filter(pl.col("code").str.starts_with("MEDICATION//START//"))
+        assert starts.filter(pl.col("numeric_value").is_null())["text_value"].unique().to_list() == ["1-2"]
         labs = data.filter(pl.col("code") == "LAB//RESULT//101//SODIUM")
         assert labs.filter(pl.col("text_value") == "see comment")["numeric_value"].is_null().all()
 
-        codes = pl.read_parquet(metadata / "codes.parquet")
-        dx = codes.filter(pl.col("code") == "DIAGNOSIS//ICD//10//I50.23")
-        assert dx["parent_codes"].to_list() == [["ICD10CM/I50.23"]]
+        # The `nan` resulting-encounter sentinel becomes a null, so `hadm_id` stays an integer.
+        assert data.schema["hadm_id"] == pl.Int64
+        assert labs["hadm_id"].null_count() == 0

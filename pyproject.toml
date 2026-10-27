@@ -1,10 +1,11 @@
 [build-system]
-requires = ["setuptools>=64", "setuptools-scm>=8.0", "wheel"]
+requires = ["setuptools>=64", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "ALOTT-MEDS"
-dynamic = ["version"]
+# Bump with `uv version --bump patch|minor|major`, then tag the commit with the same version.
+version = "0.0.1"
 authors = [
   { name="Robin van de Water", email="rpv2114@cumc.columbia.edu" },
 ]
@@ -24,7 +25,7 @@ classifiers = [
 # raw data from PhysioNet. MEDS-transforms, polars and hydra all arrive through it at the
 # versions it fences; duplicating those pins here would only create drift.
 dependencies = [
-    "meds-extract[download]>=0.7.0,<0.8",
+    "meds-extract[download]>=0.7.1,<0.8",
 ]
 
 [dependency-groups]
@@ -37,14 +38,17 @@ dev = [
     "shfmt-py==3.12.0.2",
 ]
 
-[tool.setuptools_scm]
-
 [project.entry-points."MEDS_extract.pipelines"]
 ALOTT = "ALOTT_MEDS:event_configs.yaml"
 
 [project.urls]
 Homepage = "https://github.com/rvandewater/ALOTT_MEDS"
 Issues = "https://github.com/rvandewater/ALOTT_MEDS/issues"
+
+[tool.setuptools.package-data]
+# The MESSY spec is the whole ETL. setuptools-scm used to ship it implicitly (as a git-tracked file);
+# with a static version it has to be listed, or installed wheels lack it.
+ALOTT_MEDS = ["event_configs.yaml"]
 
 [tool.ruff]
 target-version = "py311"
