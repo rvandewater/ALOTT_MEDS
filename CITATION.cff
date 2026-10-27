@@ -1,0 +1,13 @@
+abstract: ALarms, Outcomes Telemetry with Timing (ALOTT) ETL pipeline
+authors:
+- affiliation: Columbia University
+  family-names: Robin van de Water
+cff-version: 1.2.0
+date-released: '2026-10-27'
+doi: 10.5281/zenodo.23698074
+license:
+- mit
+message: If you use this software, please cite it using the metadata from this file.
+repository-code: https://github.com/rvandewater/ALOTT_MEDS/tree/0.0.2
+title: 'rvandewater/ALOTT_MEDS: Zenodo release'
+type: software
