@@ -18,9 +18,10 @@
 # checked against a download.
 #
 # Date shifting: every patient's dates are shifted by a random -180..180 days, time of day is
-# not. Most timestamps are `%Y-%m-%d %H:%M:%S`; labs and orders carry only a shifted *date*,
-# so their events are placed at the end of that day (23:59:59). Midnight would make a result
-# visible before it existed (future leakage for any prediction made later that day).
+# not. Most timestamps are `%Y-%m-%d %H:%M:%S`; labs, orders and medication start/end carry
+# only a shifted *date*, so their events are placed at the end of that day (23:59:59).
+# Midnight would make a result visible before it existed (future leakage for any prediction
+# made later that day).
 
 etl:
   dataset_name: ALOTT
@@ -48,18 +49,42 @@ emr-datasets/admission:
   # the same ICD code occurs in both columns, and MEDS-Extract refuses a code produced by two
   # code templates. The codes are already dotted ICD-10-CM, so `DIAGNOSIS//ICD//10//<code>`
   # maps to `ICD10CM/<code>` directly.
-  primary_diagnosis:
-    code: f"DIAGNOSIS//ICD//10//{$Primary_ICD10}"
+  #
+  # About 4% of cells hold a `, `-separated list of up to four codes. MESSY cannot explode a
+  # list into rows, so each position is its own block: `_k` extracts the k-th code and yields
+  # no event when the list is shorter. The full diagnosis text rides on every one. The blocks
+  # run from the 4th position down because MESSY-synth builds its synthetic value from the
+  # first pattern it meets, and only a 4-code list satisfies all four.
+  primary_diagnosis_4: &primary_diagnosis
+    code: f"DIAGNOSIS//ICD//10//{extract group 1 of /^[^,]+, [^,]+, [^,]+, ([^,]+)/ from $Primary_ICD10}"
     time: '$dischOffset::"%Y-%m-%d %H:%M:%S"'
     hadm_id: $aCSN
     text_value: $Primary_Diagnosis
     diagnosis_rank: "'PRIMARY'"
-  secondary_diagnosis:
-    code: f"DIAGNOSIS//ICD//10//{$Secondary_ICD10}"
+  primary_diagnosis_3:
+    <<: *primary_diagnosis
+    code: f"DIAGNOSIS//ICD//10//{extract group 1 of /^[^,]+, [^,]+, ([^,]+)/ from $Primary_ICD10}"
+  primary_diagnosis_2:
+    <<: *primary_diagnosis
+    code: f"DIAGNOSIS//ICD//10//{extract group 1 of /^[^,]+, ([^,]+)/ from $Primary_ICD10}"
+  primary_diagnosis:
+    <<: *primary_diagnosis
+    code: f"DIAGNOSIS//ICD//10//{extract group 1 of /^([^,]+)/ from $Primary_ICD10}"
+  secondary_diagnosis_4: &secondary_diagnosis
+    code: f"DIAGNOSIS//ICD//10//{extract group 1 of /^[^,]+, [^,]+, [^,]+, ([^,]+)/ from $Secondary_ICD10}"
     time: '$dischOffset::"%Y-%m-%d %H:%M:%S"'
     hadm_id: $aCSN
     text_value: $Secondary_Diagnosis
     diagnosis_rank: "'SECONDARY'"
+  secondary_diagnosis_3:
+    <<: *secondary_diagnosis
+    code: f"DIAGNOSIS//ICD//10//{extract group 1 of /^[^,]+, [^,]+, ([^,]+)/ from $Secondary_ICD10}"
+  secondary_diagnosis_2:
+    <<: *secondary_diagnosis
+    code: f"DIAGNOSIS//ICD//10//{extract group 1 of /^[^,]+, ([^,]+)/ from $Secondary_ICD10}"
+  secondary_diagnosis:
+    <<: *secondary_diagnosis
+    code: f"DIAGNOSIS//ICD//10//{extract group 1 of /^([^,]+)/ from $Secondary_ICD10}"
 
 emr-datasets/demographics:
   # Subject-level properties, so static (null time). The table is keyed per encounter, so a
@@ -94,13 +119,15 @@ emr-datasets/allergy:
 
 emr-datasets/flowsheet:
   # Provider-charted vitals, risk scores and rapid-response events. `MEAS_VALUE` is free
-  # text; `::?float64` keeps the numeric reading where there is one and null otherwise, and
-  # the raw string is always kept in `text_value`.
+  # text; `::?float64` keeps the numeric reading where there is one and null otherwise.
+  # Scored scale items are charted as `<score>--><label>` (e.g. `-1-->Drowsy`), so their
+  # leading score is the numeric reading. The raw string is kept in `text_value` unless it is
+  # just the number (MEDS-Extract drops a `text_value` equal to `numeric_value`).
   flowsheet:
     code: f"FLOWSHEET//{$FLO_MEAS_ID}"
     time: '$recordedOffsetDate::"%Y-%m-%d %H:%M:%S"'
     hadm_id: $aCSN
-    numeric_value: $MEAS_VALUE::?float64
+    numeric_value: coalesce($MEAS_VALUE::?float64, (extract group 1 of /^(-?[0-9]+)-->/ from $MEAS_VALUE::str)::?float64)
     text_value: $MEAS_VALUE
     flow_type: $Flow_Type
     _metadata:
@@ -127,19 +154,32 @@ emr-datasets/location:
     hadm_id: $aCSN
 
 emr-datasets/medications:
-  # Administrations (`OffsetMAR_TAKEN_TIME`) are not emitted yet.
+  # One row per administration, each repeating its order's start and end. Those two are
+  # datetimes in form but always 00:00:00 in the release, i.e. dates, so they are placed at
+  # the end of the day like labs and orders. The ordered dose is free text (`1-2` for a
+  # range); its numeric reading is kept where there is one and the raw string otherwise.
   medication_start:
     code: f"MEDICATION//START//{$MEDICATION}"
-    time: '$startOffsetDate::"%Y-%m-%d %H:%M:%S"'
+    time: '$startOffsetDate::"%Y-%m-%d %H:%M:%S" @ 23:59:59'
     hadm_id: $aCSN
     numeric_value: $HV_DISCRETE_DOSE::?float64
+    text_value: $HV_DISCRETE_DOSE
     dose_unit: $HV_DISCRET_DOSE_UNIT
     frequency: $FREQUENCY
-    route: $MAR_ROUTE
   medication_stop:
     code: f"MEDICATION//STOP//{$MEDICATION}"
-    time: '$endOffsetDate::"%Y-%m-%d %H:%M:%S"'
+    time: '$endOffsetDate::"%Y-%m-%d %H:%M:%S" @ 23:59:59'
     hadm_id: $aCSN
+  # The Medication Administration Record (MAR), the bedside log of each dose, is the only
+  # medication time with a time of day. The recorded action is part of the code, since a held
+  # or refused dose is not a given one; a row without an action is kept as `UNK`.
+  medication_administration:
+    code: f"MEDICATION//MAR//{$MEDICATION}//{$MAR_ACTION ?? 'UNK'}"
+    time: '$OffsetMAR_TAKEN_TIME::"%Y-%m-%d %H:%M:%S"'
+    hadm_id: $aCSN
+    numeric_value: $MAR_DOSE::?float64
+    dose_unit: $MAR_DOSE_UNIT
+    route: $MAR_ROUTE
 
 emr-datasets/labs:
   # Ordering and resulting encounters can differ; the resulting one is the visit the value
@@ -157,7 +197,7 @@ emr-datasets/labs:
     code: f"LAB//RESULT//{$PROC_ID}//{$COMPONENT_NAME ?? 'UNK'}"
     time: '$resultsOffsetDate::"%Y-%m-%d" @ 23:59:59'
     hadm_id: $resulting_aCSN::?int64
-    numeric_value: "$ORD_NUM_VALUE::?float64 if $ORD_NUM_VALUE != 9999999"
+    numeric_value: "$ORD_NUM_VALUE::?float64 if $ORD_NUM_VALUE::?float64 != 9999999"
     text_value: $ORD_VALUE
     order_status: $order_status
     _metadata:
@@ -165,10 +205,22 @@ emr-datasets/labs:
         description: f"{$DESCRIPTION} - {$COMPONENT_NAME}"
 
 emr-datasets/orders:
+  # Every order type except labs. About half the rows carry a single result, with the same
+  # `nan` resulting-encounter and 9999999 nonnumeric sentinels as labs.
   order:
-    code: f"ORDER//{$Order_type ?? 'UNK'}//{$PROC_ID}"
+    code: f"ORDER//ORDERED//{$Order_type ?? 'UNK'}//{$PROC_ID}"
     time: '$orderingOffsetDate::"%Y-%m-%d" @ 23:59:59'
     hadm_id: $ordering_aCSN
+    order_status: $order_status
+    _metadata:
+      _self:
+        description: $DESCRIPTION
+  order_result:
+    code: f"ORDER//RESULT//{$Order_type ?? 'UNK'}//{$PROC_ID}"
+    time: '$resultsOffsetDate::"%Y-%m-%d" @ 23:59:59'
+    hadm_id: $resulting_aCSN::?int64
+    numeric_value: "$ORD_NUM_VALUE::?float64 if $ORD_NUM_VALUE::?float64 != 9999999"
+    text_value: $ORD_VALUE
     order_status: $order_status
     _metadata:
       _self:

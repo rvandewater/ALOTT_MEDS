@@ -54,7 +54,8 @@ def write_synthetic_input(root: Path) -> None:
             "LOS_Hours": [12] * n,
             "REASON_VISIT_NAME": ["CHEST PAIN"] * n,
             "Discharge_Destination": ["HOME"] * n,
-            "Primary_ICD10": ["I50.23"] * n,
+            # Some cells list several codes; each becomes its own diagnosis event.
+            "Primary_ICD10": ["I50.23", "I50.23, I10"] * (n // 2),
             "Primary_Diagnosis": ["Acute on chronic systolic heart failure"] * n,
             "Secondary_ICD10": ["I50.23", None] * (n // 2),
             "Secondary_Diagnosis": ["Presence of prosthetic heart valve", None] * (n // 2),
@@ -74,7 +75,8 @@ def write_synthetic_input(root: Path) -> None:
             "FLO_MEAS_ID": ["8"] * n,
             "flo_meas_name": ["PULSE"] * n,
             "disp_name": ["Pulse"] * n,
-            "MEAS_VALUE": ["72", "irregular"] * (n // 2),
+            # Scored scale items are charted as `<score>--><label>`.
+            "MEAS_VALUE": ["72", "irregular", "-1-->Drowsy", "98.6", "2-->Some help"] * (n // 5),
             "MEAS_COMMENT": [None] * n,
             "recordedOffsetDate": at("09:00:00"),
             "aFSD": list(range(n)),
@@ -90,17 +92,18 @@ def write_synthetic_input(root: Path) -> None:
         "medications": {
             **ids,
             "MEDICATION": ["FUROSEMIDE 40 MG TAB"] * n,
-            "orderingOffsetDate": at("10:45:00"),
-            "startOffsetDate": at("11:00:00"),
-            "endOffsetDate": [None, *at("19:00:00")[1:]],
+            # Order start and end are datetimes in form but always midnight in the release.
+            "orderingOffsetDate": at("00:00:00"),
+            "startOffsetDate": at("00:00:00"),
+            "endOffsetDate": [None, *at("00:00:00")[1:]],
             "ORDERING_MODE": ["Inpatient"] * n,
-            "HV_DISCRETE_DOSE": ["40"] * n,
+            "HV_DISCRETE_DOSE": ["40", "1-2"] * (n // 2),
             "HV_DISCRET_DOSE_UNIT": ["mg"] * n,
             "FREQUENCY": ["DAILY"] * n,
             "MAR_DOSE": ["40"] * n,
             "MAR_DOSE_UNIT": ["mg"] * n,
             "OffsetMAR_TAKEN_TIME": at("11:05:00"),
-            "MAR_ACTION": ["Given"] * n,
+            "MAR_ACTION": ["Given", None] * (n // 2),
             "MAR_ROUTE": ["Oral"] * n,
         },
         # Unresulted lab/order rows carry the literal string `nan` as their resulting encounter.
@@ -122,16 +125,16 @@ def write_synthetic_input(root: Path) -> None:
         "orders": {
             "aMRN": ids["aMRN"],
             "ordering_aCSN": csns,
-            "resulting_aCSN": ["nan"] * n,
-            "Order_type": ["Imaging"] * n,
-            "DESCRIPTION": ["XR CHEST 1 VIEW"] * n,
+            "resulting_aCSN": ["nan", *map(str, csns[1:])],
+            "Order_type": ["Point of Care"] * n,
+            "DESCRIPTION": ["POC GLUCOSE"] * n,
             "PROC_ID": ["202"] * n,
             "ORDER_STATUS_C": [5] * n,
             "order_status": ["Completed"] * n,
             "orderingOffsetDate": days,
-            "resultsOffsetDate": [None] * n,
-            "ORD_NUM_VALUE": [None] * n,
-            "ORD_VALUE": [None] * n,
+            "resultsOffsetDate": [None, *days[1:]],
+            "ORD_NUM_VALUE": [None, *["9999999", "105"] * (n // 2)][:n],
+            "ORD_VALUE": [None, *["see comment", "105"] * (n // 2)][:n],
         },
     }
     for name, cols in tables.items():
@@ -191,16 +194,32 @@ def test_e2e_synthetic():
         admits = data.filter(pl.col("code").str.starts_with("HOSPITAL_ADMISSION"))
         assert (admits["time"].dt.hour() == 8).all()
 
-        # Date-only lab and order times sit at the end of the day, never before the event happened.
-        dated = data.filter(
-            pl.col("code").str.starts_with("LAB//") | pl.col("code").str.starts_with("ORDER//")
-        )
-        assert (dated["time"].dt.strftime("%H:%M:%S") == "23:59:59").all()
+        # Date-only lab, order and medication start/stop times sit at the end of the day, never
+        # before the event happened. Administrations keep their time of day.
+        dated = data.filter(pl.col("code").str.contains(r"^(LAB|ORDER|MEDICATION//(START|STOP))//"))
+        assert dated.height and (dated["time"].dt.strftime("%H:%M:%S") == "23:59:59").all()
+        mar = data.filter(pl.col("code").str.starts_with("MEDICATION//MAR//"))
+        assert mar.height == N_SUBJECTS and (mar["time"].dt.strftime("%H:%M") == "11:05").all()
+        assert mar["code"].str.ends_with("//UNK").sum() == N_SUBJECTS // 2
+
+        # Each code in a listed diagnosis cell is its own event.
+        primary = data.filter(pl.col("diagnosis_rank") == "PRIMARY")
+        assert sorted(primary["code"].unique()) == ["DIAGNOSIS//ICD//10//I10", "DIAGNOSIS//ICD//10//I50.23"]
+
+        # Order results are extracted with the same sentinels as labs.
+        results = data.filter(pl.col("code").str.starts_with("ORDER//RESULT//"))
+        assert results.height == N_SUBJECTS - 1
+        assert results.filter(pl.col("text_value") == "see comment")["numeric_value"].is_null().all()
+        assert (results["numeric_value"].drop_nulls() == 105).all()
 
         # Free-text values keep their numeric reading only where they have one. Epic uses
         # ORD_NUM_VALUE=9999999 when a lab result is non-numeric; that sentinel must stay null.
         flows = data.filter(pl.col("code") == "FLOWSHEET//8")
-        assert flows["numeric_value"].null_count() == N_SUBJECTS // 2
+        assert flows["numeric_value"].null_count() == N_SUBJECTS // 5
+        scored = flows.filter(pl.col("text_value").str.contains("-->"))
+        assert sorted(scored["numeric_value"]) == [-1, -1, 2, 2]
+        starts = data.filter(pl.col("code").str.starts_with("MEDICATION//START//"))
+        assert starts.filter(pl.col("numeric_value").is_null())["text_value"].unique().to_list() == ["1-2"]
         labs = data.filter(pl.col("code") == "LAB//RESULT//101//SODIUM")
         assert labs.filter(pl.col("text_value") == "see comment")["numeric_value"].is_null().all()
 

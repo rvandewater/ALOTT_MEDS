@@ -76,37 +76,71 @@ and what stamps the output's `metadata/dataset.json` with
 
 ALOTT shifts each patient's dates by a random -180..180 days but keeps the time of day. Most
 tables store each timestamp as one shifted `%Y-%m-%d %H:%M:%S` column. Labs and orders carry
-only a shifted **date**, so their events are placed at the **end of that day (23:59:59)**:
-midnight would make a result visible before it existed, which leaks the future into any
-prediction made later that day. Same-day lab orders and results therefore share a time. A row
-with a null timestamp produces no event.
+only a shifted **date**, and medication start and end times are always `00:00:00`, i.e. dates
+too. Those events are placed at the **end of that day (23:59:59)**: midnight would make a
+result or a new medication visible before it existed, which leaks the future into any
+prediction made later that day. Same-day lab orders and results therefore share a time.
+Medication administrations keep their recorded time of day. A row with a null timestamp
+produces no event.
 
 Absolute dates are shifted per patient, so only differences *within* a subject are
 meaningful.
 
 ### IDs
 
-`aMRN` is the MEDS `subject_id`; the encounter key `aCSN` is carried as `hadm_id`. Lab
-results use the resulting encounter and lab and other orders the ordering one. The release
+`aMRN` is the MEDS `subject_id`; the encounter key `aCSN` is carried as `hadm_id`. Lab and
+order results use the resulting encounter, and orders the ordering one. The release
 writes the string `nan` for an unresulted encounter; it is cast leniently, so it becomes a
 null and `hadm_id` stays `Int64`.
+
+### Codes
+
+Every code is `FAMILY//...`, from general to specific, so a prefix selects a group (all
+labs, one lab panel, one drug). Where a table records both an order and its outcome, the
+second component says which: `ORDERED` or `RESULT`, `START` or `STOP`, or `MAR`
+(Medication Administration Record: the bedside log of each dose given, held or refused).
+`UNK` stands for a null component that must not drop the row (see
+[Null handling](#null-handling)).
+
+| Code                                             | Table        | Time                  | Value and extra columns                                                                |
+| ------------------------------------------------ | ------------ | --------------------- | -------------------------------------------------------------------------------------- |
+| `HOSPITAL_ADMISSION//<admission type>//<source>` | admission    | admission             | reason for visit in `text_value`                                                       |
+| `HOSPITAL_DISCHARGE//<destination>`              | admission    | discharge             |                                                                                        |
+| `DIAGNOSIS//ICD//10//<ICD-10-CM code>`           | admission    | discharge             | diagnosis text; `diagnosis_rank` `PRIMARY` or `SECONDARY`                              |
+| `<FIELD>//<value>`                               | demographics | static                | `FIELD` is `GENDER`, `MARITAL_STATUS`, `RACE`, `ETHNICITY`, `LANGUAGE` or `BLOOD_TYPE` |
+| `ALLERGY//<allergen>`                            | allergy      | static                | reaction in `text_value`                                                               |
+| `FLOWSHEET//<FLO_MEAS_ID>`                       | flowsheet    | recorded              | reading or score; `flow_type`                                                          |
+| `ICU_ADMISSION`, `ICU_DISCHARGE`                 | icu          | start, end            |                                                                                        |
+| `TRANSFER`                                       | location     | start                 |                                                                                        |
+| `MEDICATION//START//<drug>`                      | medications  | start date, 23:59:59  | ordered dose (raw text if a range); `dose_unit`, `frequency`                           |
+| `MEDICATION//STOP//<drug>`                       | medications  | end date, 23:59:59    |                                                                                        |
+| `MEDICATION//MAR//<drug>//<action>`              | medications  | administration        | given dose; `dose_unit`, `route`                                                       |
+| `LAB//ORDERED//<PROC_ID>`                        | labs         | order date, 23:59:59  |                                                                                        |
+| `LAB//RESULT//<PROC_ID>//<component>`            | labs         | result date, 23:59:59 | result; `order_status`                                                                 |
+| `ORDER//ORDERED//<order type>//<PROC_ID>`        | orders       | order date, 23:59:59  | `order_status`                                                                         |
+| `ORDER//RESULT//<order type>//<PROC_ID>`         | orders       | result date, 23:59:59 | result; `order_status`                                                                 |
+
+`codes.parquet` carries a description for flowsheet, lab and order codes, taken from the
+release's display names.
 
 ### Null handling
 
 A null component of a composite code drops the row under MEDS-Extract 0.7. Components are
 therefore coalesced with `?? 'UNK'` wherever a null must not drop the row (admission type and
-source, discharge destination, lab component, order type).
+source, discharge destination, lab component, order type, medication administration action).
 
-The rest are deliberately left uncoalesced. In the local copy of the release, the code
-columns of flowsheets, labs, orders and allergies are never null, and `MEDICATION` is null in
-9 of 6,384,831 rows, so a coalesce would add nothing. A missing ICD-10 code or demographic
+The rest are deliberately left uncoalesced. In the release, the code columns of
+flowsheets, labs, orders and allergies are never null, and `MEDICATION` is null in 10 of
+12,698,867 rows, so a coalesce would add nothing. A missing ICD-10 code or demographic
 produces no event rather than an `UNK` category, because a missing value is not an observed
 one.
 
 ### Diagnoses
 
 The primary and secondary ICD-10 codes on each visit become `DIAGNOSIS//ICD//10//<code>`
-events at discharge time, with `diagnosis_rank` set to `PRIMARY` or `SECONDARY`. No
+events at discharge time, with `diagnosis_rank` set to `PRIMARY` or `SECONDARY`. About 4% of
+cells list up to four codes separated by a comma and a space; each code becomes its own event, carrying the
+cell's full diagnosis text. No
 `parent_codes` metadata is attached: the same code occurs as both primary and secondary, and
 MEDS-Extract rejects one code produced by two code templates.
 `DIAGNOSIS//ICD//10//<code>` maps to `ICD10CM/<code>` directly.
@@ -117,14 +151,19 @@ MEDS-Extract rejects one code produced by two code templates.
     room or bed), so they become bare `ICU_ADMISSION`, `ICU_DISCHARGE` and `TRANSFER`
     events.
 - **Demographics and allergies** carry no time in the release and are static events.
-- **Flowsheet and lab values** are free text. The numeric reading is kept where it parses,
-    and the raw string is always kept in `text_value`.
+- **Flowsheet, lab and order-result values** are free text. The numeric reading is kept where
+    it parses; scored flowsheet items charted as `<score>--><label>` (e.g. `-1-->Drowsy`) keep
+    their score. The raw string goes to `text_value` unless it is just the number. Epic's
+    nonnumeric sentinel `9999999` never becomes a numeric value.
+- **Medications:** each row of the release is one administration and repeats its order's
+    start and end, so an order yields one `START`, one `STOP` and one `MAR` event per
+    administration.
+- **Orders** hold every order type except labs; roughly half carry a single result.
 - **Birth and death:** the release has no birth date, age or death time, so there are no
     `MEDS_BIRTH` or `MEDS_DEATH` events.
 - **Not extracted:** the telemetry (alarms, 2-second measurements, waveforms; per-admission
     files keyed by file name, far larger than the EMR), `social_hx` (no event times and
-    unlabeled Epic category codes), and medication administrations
-    (`OffsetMAR_TAKEN_TIME`; not emitted yet).
+    unlabeled Epic category codes), and the medication order date.
 
 ### Validation against the release
 
@@ -139,13 +178,15 @@ showed what had to change:
     column. Labs and orders keep only the date (see [Timestamps](#timestamps)).
 - `icu` and `location` have no department, event type, room or bed columns.
 - `resulting_aCSN` holds the string `nan` for unresulted rows.
-- 1,574 ICD-10 codes occur as both primary and secondary diagnoses (see
-    [Diagnoses](#diagnoses)). The synthetic test now covers this collision.
+- 1,536 ICD-10 codes occur as both primary and secondary diagnoses, and some cells list
+    several codes (see [Diagnoses](#diagnoses)). The synthetic test covers both.
+- Medication start and end times are always midnight, and `orders` carries results of its
+    own (it holds no lab orders).
 
-All ten CSVs are valid UTF-8. On a local copy of the 1.0.0 EMR tables (4.8 GB of CSVs),
-`meds-extract-run` with MEDS-Extract 0.7.1 finishes in about a minute with about 3.2 GB peak
-memory, producing 36.5M events for 18,472 subjects. Fewer lab, order and medication events
-come out than raw rows because identical events (same subject, time and code) are merged: lab
+All ten CSVs are valid UTF-8. On the full 1.0.0 EMR tables (6.3 GB of CSVs read),
+`meds-extract-run` with MEDS-Extract 0.7.1 finishes in about 90 seconds on a laptop with about
+6.5 GB peak memory, producing 52.6M events for 18,472 subjects. Fewer lab, order and
+medication start/stop events come out than raw rows because identical events are merged: lab
 and order times have day resolution, and the medication table repeats an order's start and
 end on every administration row.
 
