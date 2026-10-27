@@ -1,35 +1,32 @@
 # Releasing ALOTT-MEDS
 
-A release is a git tag. The package version comes from the tag (setuptools-scm), so there is
-no version number to edit anywhere: pushing tag `0.0.2` builds `ALOTT-MEDS 0.0.2`, publishes
-it to PyPI and creates the GitHub release. The same version is stamped into every MEDS
-output as `metadata/dataset.json` `dataset_version` = `<ALOTT release>:<package version>`
-(e.g. `1.0.0:0.0.2`).
+The version lives in `pyproject.toml` and always holds the **last released** version. A release
+bumps it with `uv version --bump`, commits the bump, and tags that commit with the version it
+was just bumped to. The tag is read back from `pyproject.toml`, never typed, so it cannot name
+the wrong version; the publish workflow also refuses any tag that differs from
+`pyproject.toml`. Pushing the tag publishes to PyPI and creates the GitHub release.
 
-## Choosing the version ("bumping")
+The version is stamped into every MEDS output as `metadata/dataset.json` `dataset_version` =
+`<ALOTT release>:<package version>` (e.g. `1.0.0:0.0.1`).
 
-Bumping means choosing the next tag. Tags are plain [SemVer](https://semver.org) numbers
-without a `v` prefix (`0.0.2`, not `v0.0.2`), which keeps them identical to the PyPI version.
+## Choosing the bump
 
-| Change since the last release                                                                    | Bump  | Example         |
-| ------------------------------------------------------------------------------------------------ | ----- | --------------- |
-| Docs, CI, packaging, or a fix that leaves every code and its meaning unchanged                   | patch | `0.0.1 → 0.0.2` |
-| Output changes: new or renamed codes, events moved in time, values parsed differently            | minor | `0.0.2 → 0.1.0` |
-| `1.0.0` once the code vocabulary is stable; afterwards, any change that breaks downstream models | major | `0.4.0 → 1.0.0` |
+Tags are plain [SemVer](https://semver.org) numbers without a `v` prefix (`0.0.1`, not
+`v0.0.1`), identical to the PyPI version.
+
+| Change since the last release                                                                    | Bump    | Example         |
+| ------------------------------------------------------------------------------------------------ | ------- | --------------- |
+| Docs, CI, packaging, or a fix that leaves every code and its meaning unchanged                   | `patch` | `0.0.1 → 0.0.2` |
+| Output changes: new or renamed codes, events moved in time, values parsed differently            | `minor` | `0.0.2 → 0.1.0` |
+| `1.0.0` once the code vocabulary is stable; afterwards, any change that breaks downstream models | `major` | `0.4.0 → 1.0.0` |
 
 Before `1.0.0`, a minor bump is how to flag an output change that would break a model trained
-on the previous output.
+on the previous output. Preview a bump without changing anything with
+`uv version --bump patch --dry-run`.
 
 The ALOTT data release is versioned separately, as `sources.dataset_version` in
 [`src/ALOTT_MEDS/event_configs.yaml`](src/ALOTT_MEDS/event_configs.yaml). Change it only when
 the spec targets a new PhysioNet release, and release the package with at least a minor bump.
-
-To see the last release and what the current commit would build as:
-
-```bash
-git describe --tags --abbrev=0                     # last release tag
-uvx --from setuptools-scm python -m setuptools_scm # e.g. 0.0.3.dev2+g113c173
-```
 
 ## One-time setup (before the first release)
 
@@ -52,19 +49,31 @@ and add yourself as a required reviewer.
 
 ## Releasing
 
-1. Make sure `main` holds everything to release and its checks are green (Tests, Synthetic
-    ETL, Code Quality Main).
-
-2. If the spec changed, run it over the full ALOTT EMR tables (aggregate checks only, see the
-    README) and update the figures in the README's *Validation against the release*.
-
-3. Tag the release commit on `main` and push the tag:
+1. Start from an up-to-date, clean `main` whose checks are green (Tests, Synthetic ETL, Code
+    Quality Main):
 
     ```bash
-    git switch main && git pull --ff-only
-    git tag -a 0.0.2 -m "ALOTT-MEDS 0.0.2"
-    git push origin 0.0.2
+    git switch main && git pull --ff-only && git status --short # must print nothing
     ```
+
+2. If the spec changed, run it over the full ALOTT EMR tables (aggregate checks only, see the
+    README) and update the figures in the README's *Validation against the release* first.
+
+3. Bump, test, build, commit, tag and push. Use `patch`, `minor` or `major` as chosen above:
+
+    ```bash
+    uv version --bump patch
+    uv run pytest
+    uv build --clear
+    git add pyproject.toml uv.lock
+    git commit -m "Release $(uv version --short)"
+    VERSION=$(uv version --short)
+    git tag -a "$VERSION" -m "Release $VERSION"
+    git push origin main "$VERSION"
+    ```
+
+    If `pytest` or `uv build` fails, stop: nothing is committed yet. Undo the bump with
+    `git checkout pyproject.toml uv.lock`, fix the problem on `main`, and start again.
 
     Do not create the GitHub release by hand; the workflow creates it and fails if it already
     exists.
@@ -72,17 +81,15 @@ and add yourself as a required reviewer.
 4. The tag push runs [`python-build.yaml`](.github/workflows/python-build.yaml). Follow it
     with `gh run watch`. It:
 
-    - builds the wheel and sdist from the full git history;
-    - fails unless the wheel's version is exactly the tag (so a dev version can never be
-        published);
-    - publishes to PyPI;
+    - fails unless the tag equals the `pyproject.toml` version;
+    - builds the wheel and sdist and publishes them to PyPI;
     - signs the dists with Sigstore and attaches them to a new GitHub release named after the
         tag.
 
 5. Check the result:
 
     ```bash
-    uv run --no-project --with ALOTT-MEDS==0.0.2 python -c \
+    uv run --no-project --with ALOTT-MEDS==$VERSION python -c \
     	"import importlib.resources as r; print(r.files('ALOTT_MEDS').joinpath('event_configs.yaml').is_file())"
     ```
 
@@ -93,12 +100,12 @@ and add yourself as a required reviewer.
 
 ## When something goes wrong
 
-- **The build fails on a tag push** (e.g. the version check): nothing was published, because
-    PyPI upload and the GitHub release only run after a successful build. Delete the tag, fix
-    `main`, and tag again:
+- **The workflow fails on the tag push** (e.g. the tag check): nothing was published, because
+    the PyPI upload and the GitHub release only run after a successful build. Delete the tag,
+    fix `main`, and release again; the next bump skips the failed number, which is fine:
 
     ```bash
-    git push --delete origin 0.0.2 && git tag -d 0.0.2
+    git push --delete origin "$VERSION" && git tag -d "$VERSION"
     ```
 
 - **PyPI rejects the upload** with `invalid-publisher`: the trusted publisher above is missing

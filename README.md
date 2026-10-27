@@ -225,8 +225,8 @@ uv run pytest tests/
 uv run pre-commit run --all-files
 ```
 
-Releases are git tags: the package version comes from the tag, and pushing one publishes to
-PyPI and creates the GitHub release. See [`RELEASING.md`](https://github.com/rvandewater/ALOTT_MEDS/blob/main/RELEASING.md) for choosing the
+A release bumps the version in `pyproject.toml` with `uv version --bump`, commits it and pushes
+a tag of that exact version, which publishes to PyPI and creates the GitHub release. See [`RELEASING.md`](https://github.com/rvandewater/ALOTT_MEDS/blob/main/RELEASING.md) for choosing the
 version, the one-time PyPI setup and recovering from a failed release.
 
 ALOTT has no open demo, so CI runs the spec end to end over a small **synthetic** input
