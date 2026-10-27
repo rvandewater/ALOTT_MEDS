@@ -62,7 +62,7 @@ Run `meds-extract-run --help` for the full set of arguments.
 ## Configuration
 
 The whole pipeline is one file,
-[`src/ALOTT_MEDS/event_configs.yaml`](src/ALOTT_MEDS/event_configs.yaml), written in MESSY
+[`src/ALOTT_MEDS/event_configs.yaml`](https://github.com/rvandewater/ALOTT_MEDS/blob/main/src/ALOTT_MEDS/event_configs.yaml), written in MESSY
 (MEDS-Extract Specification Syntax YAML) and registered under the `MEDS_extract.pipelines`
 entry-point group as `ALOTT`. That registration is what makes `spec=ALOTT` work from anywhere
 and what stamps the output's `metadata/dataset.json` with
@@ -225,12 +225,12 @@ uv run pytest tests/
 uv run pre-commit run --all-files
 ```
 
-To release, push a tag: `git tag 0.0.2 && git push origin 0.0.2`. The package version comes
-from the tag (setuptools-scm), so there is no version to bump; the tag push builds, publishes
-to PyPI and creates the GitHub release.
+Releases are git tags: the package version comes from the tag, and pushing one publishes to
+PyPI and creates the GitHub release. See [`RELEASING.md`](https://github.com/rvandewater/ALOTT_MEDS/blob/main/RELEASING.md) for choosing the
+version, the one-time PyPI setup and recovering from a failed release.
 
 ALOTT has no open demo, so CI runs the spec end to end over a small **synthetic** input
-generated in [`tests/e2e_synthetic_test.py`](tests/e2e_synthetic_test.py). That checks the
+generated in [`tests/e2e_synthetic_test.py`](https://github.com/rvandewater/ALOTT_MEDS/blob/main/tests/e2e_synthetic_test.py). That checks the
 spec's mechanics, not its agreement with the real release. Never commit raw ALOTT data or
 MEDS output derived from it.
 
