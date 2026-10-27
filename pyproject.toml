@@ -1,11 +1,12 @@
 [build-system]
-requires = ["setuptools>=64", "wheel"]
+requires = ["setuptools>=64", "setuptools-scm>=8.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "ALOTT-MEDS"
-# Bump with `uv version --bump patch|minor|major`, then tag the commit with the same version.
-version = "0.0.1"
+# The version is the git tag (setuptools-scm): pushing tag `0.0.2` releases 0.0.2. Untagged
+# commits build as a dev version past the last tag, e.g. `0.0.3.dev2+g113c173`.
+dynamic = ["version"]
 authors = [
   { name="Robin van de Water", email="rpv2114@cumc.columbia.edu" },
 ]
@@ -38,6 +39,8 @@ dev = [
     "shfmt-py==3.12.0.2",
 ]
 
+[tool.setuptools_scm]
+
 [project.entry-points."MEDS_extract.pipelines"]
 ALOTT = "ALOTT_MEDS:event_configs.yaml"
 
@@ -46,8 +49,8 @@ Homepage = "https://github.com/rvandewater/ALOTT_MEDS"
 Issues = "https://github.com/rvandewater/ALOTT_MEDS/issues"
 
 [tool.setuptools.package-data]
-# The MESSY spec is the whole ETL. setuptools-scm used to ship it implicitly (as a git-tracked file);
-# with a static version it has to be listed, or installed wheels lack it.
+# The MESSY spec is the whole ETL. setuptools-scm also ships git-tracked files, but listing it keeps
+# the wheel correct even when built outside a git checkout.
 ALOTT_MEDS = ["event_configs.yaml"]
 
 [tool.ruff]

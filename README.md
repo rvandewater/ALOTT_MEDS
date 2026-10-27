@@ -225,6 +225,10 @@ uv run pytest tests/
 uv run pre-commit run --all-files
 ```
 
+To release, push a tag: `git tag 0.0.2 && git push origin 0.0.2`. The package version comes
+from the tag (setuptools-scm), so there is no version to bump; the tag push builds, publishes
+to PyPI and creates the GitHub release.
+
 ALOTT has no open demo, so CI runs the spec end to end over a small **synthetic** input
 generated in [`tests/e2e_synthetic_test.py`](tests/e2e_synthetic_test.py). That checks the
 spec's mechanics, not its agreement with the real release. Never commit raw ALOTT data or
