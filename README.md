@@ -12,7 +12,7 @@ CODECOV_TOKEN_PLACEHOLDER with the repo's Codecov badge token and zenodo.XXXXXXX
 [![license](https://img.shields.io/badge/License-MIT-green.svg?labelColor=gray)](https://github.com/rvandewater/ALOTT_MEDS#license)
 [![PRs](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/rvandewater/ALOTT_MEDS/pulls)
 [![contributors](https://img.shields.io/github/contributors/rvandewater/ALOTT_MEDS.svg)](https://github.com/rvandewater/ALOTT_MEDS/graphs/contributors)
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.XXXXXXX.svg)](https://doi.org/10.5281/zenodo.XXXXXXX)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23698074.svg)](https://doi.org/10.5281/zenodo.23698074)
 
 ALOTT (ALarms, Outcomes Telemetry with Timing) is a pilot bedside-EMR database from two
 hospitals, collected to support algorithms that predict emergency response team events. It
@@ -62,7 +62,7 @@ Run `meds-extract-run --help` for the full set of arguments.
 ## Configuration
 
 The whole pipeline is one file,
-[`src/ALOTT_MEDS/event_configs.yaml`](src/ALOTT_MEDS/event_configs.yaml), written in MESSY
+[`src/ALOTT_MEDS/event_configs.yaml`](https://github.com/rvandewater/ALOTT_MEDS/blob/main/src/ALOTT_MEDS/event_configs.yaml), written in MESSY
 (MEDS-Extract Specification Syntax YAML) and registered under the `MEDS_extract.pipelines`
 entry-point group as `ALOTT`. That registration is what makes `spec=ALOTT` work from anywhere
 and what stamps the output's `metadata/dataset.json` with
@@ -225,8 +225,12 @@ uv run pytest tests/
 uv run pre-commit run --all-files
 ```
 
+A release bumps the version in `pyproject.toml` with `uv version --bump`, commits it and pushes
+a tag of that exact version, which publishes to PyPI and creates the GitHub release. See [`RELEASING.md`](https://github.com/rvandewater/ALOTT_MEDS/blob/main/RELEASING.md) for choosing the
+version, the one-time PyPI setup and recovering from a failed release.
+
 ALOTT has no open demo, so CI runs the spec end to end over a small **synthetic** input
-generated in [`tests/e2e_synthetic_test.py`](tests/e2e_synthetic_test.py). That checks the
+generated in [`tests/e2e_synthetic_test.py`](https://github.com/rvandewater/ALOTT_MEDS/blob/main/tests/e2e_synthetic_test.py). That checks the
 spec's mechanics, not its agreement with the real release. Never commit raw ALOTT data or
 MEDS output derived from it.
 
@@ -250,15 +254,17 @@ Please cite the following original dataset when using ALOTT:
 Also cite the ETL framework used to extract the dataset:
 
 ```bibtex
-@software{van_de_Water_ALOTT_MEDS_ETL_2025,
-author = {van de Water, Robin Philippus},
-license = {MIT},
-month = apr,
-title = {{ALOTT\_MEDS ETL}},
-url = {https://github.com/rvandewater/ALOTT_MEDS},
-year = {2025}
+@software{robin_van_de_water_2026_23698074,
+  author       = {Robin van de Water},
+  title        = {rvandewater/ALOTT\_MEDS: Zenodo release},
+  month        = oct,
+  year         = 2026,
+  publisher    = {Zenodo},
+  doi          = {10.5281/zenodo.23698074},
+  url          = {https://doi.org/10.5281/zenodo.23698074},
 }
 ```
+(also check the "Cite this repository" link on this repo's main page for the latest version)
 
 For citing MEDS in general:
 

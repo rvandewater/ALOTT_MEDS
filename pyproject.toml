@@ -4,7 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ALOTT-MEDS"
-# Bump with `uv version --bump patch|minor|major`, then tag the commit with the same version.
+# The last released version. A release bumps it with `uv version --bump` and tags the commit with
+# the result (see RELEASING.md); CI refuses a tag that differs from it. 0.0.0 = nothing released yet.
 version = "0.0.1"
 authors = [
   { name="Robin van de Water", email="rpv2114@cumc.columbia.edu" },
@@ -46,8 +47,8 @@ Homepage = "https://github.com/rvandewater/ALOTT_MEDS"
 Issues = "https://github.com/rvandewater/ALOTT_MEDS/issues"
 
 [tool.setuptools.package-data]
-# The MESSY spec is the whole ETL. setuptools-scm used to ship it implicitly (as a git-tracked file);
-# with a static version it has to be listed, or installed wheels lack it.
+# The MESSY spec is the whole ETL. It is not a Python file, so it has to be listed, or installed
+# wheels lack it.
 ALOTT_MEDS = ["event_configs.yaml"]
 
 [tool.ruff]
