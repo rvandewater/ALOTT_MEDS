@@ -1,10 +1,11 @@
 """End-to-end run of the shipped ETL over a tiny, fully synthetic ALOTT-shaped input.
 
-This distribution ships no Python — it is `event_configs.yaml` plus the entry-point registration that
-names it `ALOTT`. So there is exactly one thing worth testing: that `meds-extract-run spec=ALOTT`
-resolves that registration, runs the pipeline over raw tables laid out the way the spec expects, and
-leaves a well-formed MEDS cohort behind. Driving it through the registered name rather than a path is
-deliberate: it makes this test cover the registration too.
+This distribution is `event_configs.yaml`, the entry-point registration that names it `ALOTT`, and
+one post-run step, `alott-meds-describe-codes`, that fills in diagnosis metadata. So this tests that
+`meds-extract-run spec=ALOTT` resolves that registration, runs the pipeline over raw tables laid out
+the way the spec expects, and leaves a well-formed MEDS cohort behind, which the step then
+completes. Driving it through the registered name rather than a path is deliberate: it makes this
+test cover the registration too.
 
 ALOTT has no public demo release, so the input is generated here: every table the spec reads, with
 the columns it reads, filled with made-up values. Nothing in it is derived from the real dataset. It
@@ -265,3 +266,24 @@ def test_e2e_synthetic():
         # Descriptions the release's own display names already supplied are unchanged.
         assert described["FLOWSHEET//8"] == "Pulse"
         assert described["LAB//RESULT//101//SODIUM"] == "BASIC METABOLIC PANEL - SODIUM"
+
+        # The post-run step describes every diagnosis code, gives each an `ICD10CM/` parent, keeps
+        # every other code's metadata, and leaves valid MEDS code metadata behind.
+        describe = scripts / "alott-meds-describe-codes"
+        assert describe.exists(), f"alott-meds-describe-codes is not installed ({sys.executable})."
+        result = subprocess.run([str(describe), str(out)], capture_output=True, check=False, env=env)
+        assert result.returncode == 0, result.stderr.decode()
+        after_tbl = pq.read_table(metadata / "codes.parquet")
+        CodeMetadataSchema.validate(after_tbl)
+        after = pl.from_arrow(after_tbl)
+        assert after["description"].null_count() == 0
+        dx = after.filter(pl.col("code").str.starts_with("DIAGNOSIS//"))
+        assert dx["parent_codes"].to_list() == [
+            [c.replace("DIAGNOSIS//ICD//10//", "ICD10CM/")] for c in dx["code"]
+        ]
+        others = after.filter(~pl.col("code").str.starts_with("DIAGNOSIS//")).sort("code")
+        assert others.select("code", "description").equals(
+            codes.filter(~pl.col("code").str.starts_with("DIAGNOSIS//"))
+            .sort("code")
+            .select("code", "description")
+        )

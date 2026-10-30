@@ -49,6 +49,7 @@ jobs:
           uv run MESSY-synth ./src/ALOTT_MEDS/event_configs.yaml -o raw_synthetic/ --explain
           uv run meds-extract-run spec=ALOTT output_dir=./ALOTT_meds_synth \
             input_dir=raw_synthetic do_download=false
+          uv run alott-meds-describe-codes ./ALOTT_meds_synth
           for f in dataset.json codes.parquet subject_splits.parquet; do
             test -f "ALOTT_meds_synth/metadata/$f"
           done

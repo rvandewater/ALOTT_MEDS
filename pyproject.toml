@@ -20,14 +20,20 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
-# This package ships no Python: the whole ETL is `event_configs.yaml`, run by
-# MEDS-Extract's own `meds-extract-run`. So there is exactly one dependency — the
-# `[download]` extra adds `meds-extract-download`, which the runner spawns to stage the
-# raw data from PhysioNet. MEDS-transforms, polars and hydra all arrive through it at the
-# versions it fences; duplicating those pins here would only create drift.
+# The ETL is `event_configs.yaml`, run by MEDS-Extract's own `meds-extract-run`; the
+# `[download]` extra adds `meds-extract-download`, which the runner spawns to stage the raw data
+# from PhysioNet. The only Python is `alott-meds-describe-codes`, which fills in diagnosis
+# metadata after the run; `meds`, `polars` and `pyarrow` are for it, and all three are
+# MEDS-Extract dependencies too, so they are listed unpinned and resolve to its versions.
 dependencies = [
     "meds-extract[download]>=0.7.1,<0.8",
+    "meds",
+    "polars",
+    "pyarrow",
 ]
+
+[project.scripts]
+alott-meds-describe-codes = "ALOTT_MEDS.code_descriptions:main"
 
 [dependency-groups]
 # `shfmt-py` bundles the `shfmt` binary that the `mdformat-shfmt` pre-commit hook shells

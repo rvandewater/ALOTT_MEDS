@@ -33,7 +33,10 @@ export DATASET_DOWNLOAD_USERNAME=$PHYSIONET_USERNAME
 export DATASET_DOWNLOAD_PASSWORD=$PHYSIONET_PASSWORD
 
 meds-extract-run spec=ALOTT output_dir=$MEDS_OUTPUT_DIR
+alott-meds-describe-codes $MEDS_OUTPUT_DIR
 ```
+
+The second command fills in diagnosis descriptions and parent codes (see [Diagnoses](#diagnoses)).
 
 That downloads only the `emr-datasets/` folder of the ALOTT 1.0.0 release (the telemetry is
 skipped) into `$MEDS_OUTPUT_DIR/.meds_extract_run/raw_input` and runs the full MEDS-Extract
@@ -49,6 +52,7 @@ To reuse a download you already have, point `input_dir` at the directory that *c
 
 ```bash
 meds-extract-run spec=ALOTT output_dir=$MEDS_OUTPUT_DIR do_download=false input_dir=$RAW_INPUT_DIR
+alott-meds-describe-codes $MEDS_OUTPUT_DIR
 ```
 
 > [!NOTE]
@@ -122,9 +126,10 @@ second component says which: `ORDERED` or `RESULT`, `START` or `STOP`, or `MAR`
 
 ### Code metadata
 
-`metadata/codes.parquet` gives every code a `description`, except diagnoses (see
-[Diagnoses](#diagnoses)). All of them come from `_metadata: _self:` blocks in the spec,
-evaluated on the extracted rows, so the package still ships nothing but the spec:
+`metadata/codes.parquet` gives every code a `description`. Every code except diagnoses gets it
+from `_metadata: _self:` blocks in the spec, evaluated on the extracted rows; diagnoses get theirs,
+and `ICD10CM/` parent codes, from `alott-meds-describe-codes` after the run (see
+[Diagnoses](#diagnoses)):
 
 | Codes                                                                                             | Description                                                                                                                              |
 | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
@@ -143,8 +148,8 @@ three constant codes are written `'ICU_ADMISSION' if $startOffsetDate == $startO
 The guard tests the event's own time column, which is false only where the time is null, and
 such a row produces no event anyway: the extracted events are unchanged.
 
-No code carries `parent_codes`. The only standard vocabulary in the EMR tables is ICD-10-CM,
-and diagnoses cannot carry metadata (below). Labs and orders are keyed by Epic procedure IDs,
+Only diagnoses carry `parent_codes`, because the only standard vocabulary in the EMR tables is
+ICD-10-CM (below). Labs and orders are keyed by Epic procedure IDs,
 flowsheets by Epic flowsheet IDs and medications by name; the release has no LOINC, RxNorm or
 NDC column.
 
@@ -165,12 +170,17 @@ one.
 The primary and secondary ICD-10 codes on each visit become `DIAGNOSIS//ICD//10//<code>`
 events at discharge time, with `diagnosis_rank` set to `PRIMARY` or `SECONDARY`. About 4% of
 cells list up to four codes separated by a comma and a space; each code becomes its own event, carrying the
-cell's full diagnosis text. No `_metadata` is attached, so diagnosis codes have neither a
-`description` nor `parent_codes`: each list position of each column is its own code template,
-one code occurs under several of them (as primary and as secondary, at different positions),
-and MEDS-Extract 0.7 rejects a code produced by two metadata-carrying code templates.
-`DIAGNOSIS//ICD//10//<code>` maps to `ICD10CM/<code>` directly: the codes are dotted
-ICD-10-CM codes, so vocabulary tools (OHDSI Athena) resolve their names from that mapping.
+cell's full diagnosis text. The spec attaches no `_metadata` to them: each list position of each column is its own code
+template, one code occurs under several of them (as primary and as secondary, at different
+positions), and MEDS-Extract 0.7 rejects a code produced by two metadata-carrying code templates.
+`alott-meds-describe-codes $MEDS_OUTPUT_DIR`, run after `meds-extract-run`, fills them in
+instead: every diagnosis code gets a description naming the two source columns, and each code
+with the shape of a dotted ICD-10-CM code gets the parent `ICD10CM/<code>`, from which vocabulary
+tools (OHDSI Athena) resolve its name. It fills only values the pipeline left null and never adds
+codes, so it is safe to rerun, and it becomes a no-op once MEDS-Extract can split a cell into one
+event per code (tracked in [dftly#87](https://github.com/mmcdermott/dftly/issues/87)). On the full
+release, 3,345 of the 3,347 diagnosis codes have that shape, and 3,343 are billable codes in the
+CDC/NCHS ICD-10-CM FY2019–2021 files.
 
 ### Other tables
 

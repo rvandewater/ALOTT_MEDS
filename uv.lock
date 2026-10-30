@@ -11,7 +11,10 @@ name = "alott-meds"
 version = "0.0.1"
 source = { editable = "." }
 dependencies = [
+    { name = "meds" },
     { name = "meds-extract", extra = ["download"] },
+    { name = "polars" },
+    { name = "pyarrow" },
 ]
 
 [package.dev-dependencies]
@@ -23,7 +26,12 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "meds-extract", extras = ["download"], specifier = ">=0.7.1,<0.8" }]
+requires-dist = [
+    { name = "meds" },
+    { name = "meds-extract", extras = ["download"], specifier = ">=0.7.1,<0.8" },
+    { name = "polars" },
+    { name = "pyarrow" },
+]
 
 [package.metadata.requires-dev]
 dev = [

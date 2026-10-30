@@ -59,7 +59,8 @@ emr-datasets/admission:
   # description, no `parent_codes`): the same ICD code occurs in several of the blocks below,
   # and MEDS-Extract refuses a code produced by two metadata-carrying code templates. The codes
   # are already dotted ICD-10-CM, so `DIAGNOSIS//ICD//10//<code>` maps to `ICD10CM/<code>`
-  # directly.
+  # directly; `alott-meds-describe-codes` (code_descriptions.py) fills in that parent and a
+  # description after the run.
   #
   # About 4% of cells hold a `, `-separated list of up to four codes. MESSY cannot explode a
   # list into rows, so each position is its own block: `_k` extracts the k-th code and yields
