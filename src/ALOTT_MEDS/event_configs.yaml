@@ -39,16 +39,27 @@ emr-datasets/admission:
     time: '$admsnOffset::"%Y-%m-%d %H:%M:%S"'
     hadm_id: $aCSN
     text_value: $REASON_VISIT_NAME
+    _metadata:
+      _self:
+        description: >-
+          f"Hospital admission; admission type {$Admission_Type ?? 'UNK'} (ALOTT admission.Admission_Type),
+          admitted from {$Admit_Source ?? 'UNK'} (admission.Admit_Source)"
   discharge:
     code: f"HOSPITAL_DISCHARGE//{$Discharge_Destination ?? 'UNK'}"
     time: '$dischOffset::"%Y-%m-%d %H:%M:%S"'
     hadm_id: $aCSN
+    _metadata:
+      _self:
+        description: >-
+          f"Hospital discharge; discharged to {$Discharge_Destination ?? 'UNK'} (ALOTT
+          admission.Discharge_Destination)"
   # Diagnoses are only known at the end of the visit, so they are timed at discharge (as in
   # MIMIC-IV MEDS). The free-text name rides in `text_value` rather than `description`: it is
-  # per-visit text, not guaranteed to be a function of the code. No `parent_codes` metadata:
-  # the same ICD code occurs in both columns, and MEDS-Extract refuses a code produced by two
-  # code templates. The codes are already dotted ICD-10-CM, so `DIAGNOSIS//ICD//10//<code>`
-  # maps to `ICD10CM/<code>` directly.
+  # per-visit text, not guaranteed to be a function of the code. No `_metadata` at all (no
+  # description, no `parent_codes`): the same ICD code occurs in several of the blocks below,
+  # and MEDS-Extract refuses a code produced by two metadata-carrying code templates. The codes
+  # are already dotted ICD-10-CM, so `DIAGNOSIS//ICD//10//<code>` maps to `ICD10CM/<code>`
+  # directly.
   #
   # About 4% of cells hold a `, `-separated list of up to four codes. MESSY cannot explode a
   # list into rows, so each position is its own block: `_k` extracts the k-th code and yields
@@ -94,21 +105,45 @@ emr-datasets/demographics:
   gender:
     code: f"GENDER//{$Gender}"
     time: null
+    _metadata:
+      _self:
+        description: >-
+          f"Patient sex/gender: {$Gender} (ALOTT demographics.Gender)"
   marital_status:
     code: f"MARITAL_STATUS//{$Marital_Status}"
     time: null
+    _metadata:
+      _self:
+        description: >-
+          f"Patient marital status: {$Marital_Status} (ALOTT demographics.Marital_Status)"
   race:
     code: f"RACE//{$Patient_Race}"
     time: null
+    _metadata:
+      _self:
+        description: >-
+          f"Patient-reported race: {$Patient_Race} (ALOTT demographics.Patient_Race)"
   ethnicity:
     code: f"ETHNICITY//{$Ethnicity}"
     time: null
+    _metadata:
+      _self:
+        description: >-
+          f"Patient-reported ethnicity: {$Ethnicity} (ALOTT demographics.Ethnicity)"
   language:
     code: f"LANGUAGE//{$Preferred_Language}"
     time: null
+    _metadata:
+      _self:
+        description: >-
+          f"Patient preferred language: {$Preferred_Language} (ALOTT demographics.Preferred_Language)"
   blood_type:
     code: f"BLOOD_TYPE//{$ABO_RH_Blood_Type}"
     time: null
+    _metadata:
+      _self:
+        description: >-
+          f"Patient ABO/Rh blood type: {$ABO_RH_Blood_Type} (ALOTT demographics.ABO_RH_Blood_Type)"
 
 emr-datasets/allergy:
   # The release carries no time for allergies, so they are static.
@@ -116,6 +151,10 @@ emr-datasets/allergy:
     code: f"ALLERGY//{$Allergy}"
     time: null
     text_value: $Allergy_Reaction
+    _metadata:
+      _self:
+        description: >-
+          f"Recorded allergy; allergen: {$Allergy} (ALOTT allergy.Allergy)"
 
 emr-datasets/flowsheet:
   # Provider-charted vitals, risk scores and rapid-response events. `MEAS_VALUE` is free
@@ -136,22 +175,39 @@ emr-datasets/flowsheet:
 
 emr-datasets/icu:
   # The release keeps only the ICU stay's times, not which unit it was.
+  #
+  # These three codes are constants, but MEDS-Extract 0.7 attaches `_metadata` only to a code
+  # whose expression references a source column (mmcdermott/MEDS_extract#166), so each is
+  # guarded by its own time column: `if $t == $t` is false only where `$t` is null, and such
+  # a row produces no event anyway. The guard changes no event; it gives the code a component
+  # for its description to attach to.
   icu_admission:
-    code: "'ICU_ADMISSION'"
+    code: "'ICU_ADMISSION' if $startOffsetDate == $startOffsetDate"
     time: '$startOffsetDate::"%Y-%m-%d %H:%M:%S"'
     hadm_id: $aCSN
+    _metadata:
+      _self:
+        description: "'Start of an ICU stay; the release does not record the unit (ALOTT icu.startOffsetDate)'"
   icu_discharge:
-    code: "'ICU_DISCHARGE'"
+    code: "'ICU_DISCHARGE' if $endOffsetDate == $endOffsetDate"
     time: '$endOffsetDate::"%Y-%m-%d %H:%M:%S"'
     hadm_id: $aCSN
+    _metadata:
+      _self:
+        description: "'End of an ICU stay; the release does not record the unit (ALOTT icu.endOffsetDate)'"
 
 emr-datasets/location:
   # Bed-level movement. The release keeps only each stay's start and end, not the department,
-  # room or bed, so a transfer is just the moment the patient moved.
+  # room or bed, so a transfer is just the moment the patient moved. Guarded like the ICU codes.
   transfer:
-    code: "'TRANSFER'"
+    code: "'TRANSFER' if $startOffsetDate == $startOffsetDate"
     time: '$startOffsetDate::"%Y-%m-%d %H:%M:%S"'
     hadm_id: $aCSN
+    _metadata:
+      _self:
+        description: >-
+          'Start of a bed stay (the patient moved into a bed); the release does not record the
+          department, room or bed (ALOTT location.startOffsetDate)'
 
 emr-datasets/medications:
   # One row per administration, each repeating its order's start and end. Those two are
@@ -166,10 +222,18 @@ emr-datasets/medications:
     text_value: $HV_DISCRETE_DOSE
     dose_unit: $HV_DISCRET_DOSE_UNIT
     frequency: $FREQUENCY
+    _metadata:
+      _self:
+        description: >-
+          f"Medication order start: {$MEDICATION} (ALOTT medications.MEDICATION)"
   medication_stop:
     code: f"MEDICATION//STOP//{$MEDICATION}"
     time: '$endOffsetDate::"%Y-%m-%d %H:%M:%S" @ 23:59:59'
     hadm_id: $aCSN
+    _metadata:
+      _self:
+        description: >-
+          f"Medication order end: {$MEDICATION} (ALOTT medications.MEDICATION)"
   # The Medication Administration Record (MAR), the bedside log of each dose, is the only
   # medication time with a time of day. The recorded action is part of the code, since a held
   # or refused dose is not a given one; a row without an action is kept as `UNK`.
@@ -180,6 +244,11 @@ emr-datasets/medications:
     numeric_value: $MAR_DOSE::?float64
     dose_unit: $MAR_DOSE_UNIT
     route: $MAR_ROUTE
+    _metadata:
+      _self:
+        description: >-
+          f"Medication administration record (MAR) entry: {$MEDICATION} (ALOTT medications.MEDICATION),
+          action {$MAR_ACTION ?? 'UNK'} (medications.MAR_ACTION)"
 
 emr-datasets/labs:
   # Ordering and resulting encounters can differ; the resulting one is the visit the value
