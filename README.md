@@ -188,7 +188,7 @@ suMEDS-enrich $MEDS_OUTPUT_DIR/metadata/codes.parquet -o codes_enriched.parquet 
 ```
 
 Diagnosis codes are validated against suMEDS's versioned ontology data (sumeds-ontologies,
-pinned release), built from the public-domain CDC/NCHS ICD-10-CM files. The rules add:
+pinned release), built from the CDC/NCHS ICD-10-CM files. The rules add:
 
 - `alott-icd10cm-diagnoses`: each `DIAGNOSIS//ICD//10//<code>` with the dotted ICD-10-CM shape
     that is a valid ICD-10-CM code gets the official title as its `description`, and
