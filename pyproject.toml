@@ -47,9 +47,9 @@ Homepage = "https://github.com/rvandewater/ALOTT_MEDS"
 Issues = "https://github.com/rvandewater/ALOTT_MEDS/issues"
 
 [tool.setuptools.package-data]
-# The MESSY spec is the whole ETL. It is not a Python file, so it has to be listed, or installed
-# wheels lack it.
-ALOTT_MEDS = ["event_configs.yaml"]
+# The MESSY spec is the whole ETL, and `sumeds_rules.yaml` holds the rules suMEDS uses to enrich
+# its code metadata. Neither is a Python file, so they have to be listed, or installed wheels lack them.
+ALOTT_MEDS = ["event_configs.yaml", "sumeds_rules.yaml"]
 
 [tool.ruff]
 target-version = "py311"

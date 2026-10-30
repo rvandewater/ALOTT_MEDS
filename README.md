@@ -123,8 +123,10 @@ second component says which: `ORDERED` or `RESULT`, `START` or `STOP`, or `MAR`
 ### Code metadata
 
 `metadata/codes.parquet` gives every code a `description`, except diagnoses (see
-[Diagnoses](#diagnoses)). All of them come from `_metadata: _self:` blocks in the spec,
-evaluated on the extracted rows, so the package still ships nothing but the spec:
+[Diagnoses](#diagnoses)), which suMEDS describes (see
+[Enriching code metadata with suMEDS](#enriching-code-metadata-with-sumeds)). All of them come
+from `_metadata: _self:` blocks in the spec, evaluated on the extracted rows, so the package
+still ships no Python, only the spec and a suMEDS rules file:
 
 | Codes                                                                                             | Description                                                                                                                              |
 | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
@@ -143,8 +145,9 @@ three constant codes are written `'ICU_ADMISSION' if $startOffsetDate == $startO
 The guard tests the event's own time column, which is false only where the time is null, and
 such a row produces no event anyway: the extracted events are unchanged.
 
-No code carries `parent_codes`. The only standard vocabulary in the EMR tables is ICD-10-CM,
-and diagnoses cannot carry metadata (below). Labs and orders are keyed by Epic procedure IDs,
+The ETL writes no `parent_codes`. The only standard vocabulary in the EMR tables is
+ICD-10-CM, and diagnoses cannot carry metadata (below), so their ICD-10-CM parents come from
+suMEDS. Labs and orders are keyed by Epic procedure IDs,
 flowsheets by Epic flowsheet IDs and medications by name; the release has no LOINC, RxNorm or
 NDC column.
 
@@ -169,8 +172,33 @@ cell's full diagnosis text. No `_metadata` is attached, so diagnosis codes have 
 `description` nor `parent_codes`: each list position of each column is its own code template,
 one code occurs under several of them (as primary and as secondary, at different positions),
 and MEDS-Extract 0.7 rejects a code produced by two metadata-carrying code templates.
-`DIAGNOSIS//ICD//10//<code>` maps to `ICD10CM/<code>` directly: the codes are dotted
-ICD-10-CM codes, so vocabulary tools (OHDSI Athena) resolve their names from that mapping.
+The codes are dotted ICD-10-CM codes, so `DIAGNOSIS//ICD//10//<code>` maps to
+`ICD10CM//<code>` directly, and suMEDS adds their titles and parents (below).
+
+### Enriching code metadata with suMEDS
+
+Vocabulary work is maintained once, in [suMEDS](https://github.com/rvandewater/SumMEDS), rather
+than in every ETL. This package ships the rules for it,
+[`src/ALOTT_MEDS/sumeds_rules.yaml`](src/ALOTT_MEDS/sumeds_rules.yaml):
+
+```bash
+pip install sumeds # a release with rules support (newer than 0.3.2)
+suMEDS-enrich $MEDS_OUTPUT_DIR/metadata/codes.parquet -o codes_enriched.parquet \
+	--rules src/ALOTT_MEDS/sumeds_rules.yaml
+```
+
+Diagnosis codes are validated against suMEDS's versioned ontology data (sumeds-ontologies,
+pinned release), built from the public-domain CDC/NCHS ICD-10-CM files. The rules add:
+
+- `alott-icd10cm-diagnoses`: each `DIAGNOSIS//ICD//10//<code>` with the dotted ICD-10-CM shape
+    that is a valid ICD-10-CM code gets the official title as its `description`, and
+    `ICD10CM//<code>` followed by its ICD-10-CM ancestors as `parent_codes`.
+- `alott-diagnosis-parents-in-dataset`: same-dataset parents. A diagnosis code also gets the
+    nearest ICD-10-CM ancestor that is itself an ALOTT diagnosis code, e.g.
+    `DIAGNOSIS//ICD//10//I50.2` for `DIAGNOSIS//ICD//10//I50.23`.
+
+suMEDS fills only missing descriptions, never removes or rewrites existing metadata, and writes
+parents as `VOCABULARY//CODE`. The ETL alone emits no diagnosis descriptions or parent codes.
 
 ### Other tables
 
