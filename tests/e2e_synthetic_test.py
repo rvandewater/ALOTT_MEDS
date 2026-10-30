@@ -21,6 +21,8 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 import polars as pl
+import pyarrow.parquet as pq
+from meds import CodeMetadataSchema
 
 SPEC = "ALOTT"
 RELEASE = "1.0.0"
@@ -82,10 +84,16 @@ def write_synthetic_input(root: Path) -> None:
             "aFSD": list(range(n)),
             "Flow_Type": ["Vitals"] * n,
         },
-        "icu": {**ids, "startOffsetDate": at("10:00:00"), "endOffsetDate": at("18:00:00"), "LOS": [480] * n},
+        # One stay without a start time: it must yield no ICU_ADMISSION, and every other row one.
+        "icu": {
+            **ids,
+            "startOffsetDate": [None, *at("10:00:00")[1:]],
+            "endOffsetDate": at("18:00:00"),
+            "LOS": [480] * n,
+        },
         "location": {
             **ids,
-            "startOffsetDate": at("08:30:00"),
+            "startOffsetDate": [None, *at("08:30:00")[1:]],
             "endOffsetDate": at("10:00:00"),
             "LOS": [90] * n,
         },
@@ -226,3 +234,34 @@ def test_e2e_synthetic():
         # The `nan` resulting-encounter sentinel becomes a null, so `hadm_id` stays an integer.
         assert data.schema["hadm_id"] == pl.Int64
         assert labs["hadm_id"].null_count() == 0
+
+        # The time-column guard that lets the constant codes carry a description drops exactly the
+        # rows without a time (which produce no event anyway) and no other.
+        counts = {c: (data["code"] == c).sum() for c in ("ICU_ADMISSION", "ICU_DISCHARGE", "TRANSFER")}
+        assert counts == {
+            "ICU_ADMISSION": N_SUBJECTS - 1,
+            "ICU_DISCHARGE": N_SUBJECTS,
+            "TRANSFER": N_SUBJECTS - 1,
+        }
+
+        # codes.parquet is valid MEDS code metadata as written, lists every code in the data, and
+        # describes every code except diagnoses (which carry no `_metadata`; see the spec).
+        codes_tbl = pq.read_table(metadata / "codes.parquet")
+        CodeMetadataSchema.validate(codes_tbl)
+        codes = pl.from_arrow(codes_tbl)
+        assert set(data["code"].unique()) == set(codes["code"])
+        undescribed = codes.filter(pl.col("description").is_null())["code"]
+        assert undescribed.str.starts_with("DIAGNOSIS//").all(), undescribed.to_list()
+        described = dict(zip(codes["code"], codes["description"], strict=True))
+        assert described["GENDER//M"] == "Patient sex/gender: M (ALOTT demographics.Gender)"
+        assert described["HOSPITAL_ADMISSION//EMERGENCY//UNK"] == (
+            "Hospital admission; admission type EMERGENCY (ALOTT admission.Admission_Type), "
+            "admitted from UNK (admission.Admit_Source)"
+        )
+        assert described["MEDICATION//MAR//FUROSEMIDE 40 MG TAB//Given"].startswith(
+            "Medication administration record (MAR) entry: FUROSEMIDE 40 MG TAB"
+        )
+        assert described["TRANSFER"].startswith("Start of a bed stay")
+        # Descriptions the release's own display names already supplied are unchanged.
+        assert described["FLOWSHEET//8"] == "Pulse"
+        assert described["LAB//RESULT//101//SODIUM"] == "BASIC METABOLIC PANEL - SODIUM"
