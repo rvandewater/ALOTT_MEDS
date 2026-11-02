@@ -31,12 +31,14 @@ dependencies = [
 
 [dependency-groups]
 # `shfmt-py` bundles the `shfmt` binary that the `mdformat-shfmt` pre-commit hook shells
-# out to, keeping local + CI behavior in lock step.
+# out to, keeping local + CI behavior in lock step. tests/test_sumeds_rules.py loads the packaged
+# rules with suMEDS itself.
 dev = [
     "pre-commit~=3.8",
     "ruff>=0.11,<1.0",
     "pytest~=9.0",
     "shfmt-py==3.12.0.2",
+    "sumeds>=0.4",
 ]
 
 [project.entry-points."MEDS_extract.pipelines"]

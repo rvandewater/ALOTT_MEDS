@@ -1,7 +1,10 @@
-"""The packaged suMEDS rules parse, and their patterns match the code layouts of the spec.
+"""The packaged suMEDS rules load in suMEDS and match the code layouts of the spec.
 
-The example codes are built from the code templates in ``event_configs.yaml`` with synthetic
-(public example) values, so a change to a code layout that the rules no longer match fails here.
+suMEDS validates the rules file itself (``sumeds.load_rules``) and resolves codes with the rule objects its
+enrichment uses, so these tests only state what ALOTT's codes must resolve to. The example codes are built
+from the code templates in ``event_configs.yaml`` with synthetic (public example) values, so a change to a
+code layout that the rules no longer match fails here. The diagnosis rule is validated against suMEDS's
+ontology data, which is fetched over the network, so its enrichment is not run here.
 """
 
 import re
@@ -10,16 +13,11 @@ from importlib.resources import files
 from pathlib import Path
 
 import yaml
+from sumeds import load_rules
 
 ROOT = Path(__file__).parents[1]
 RULES_FP = ROOT / "src" / "ALOTT_MEDS" / "sumeds_rules.yaml"
 CONFIG_FP = ROOT / "src" / "ALOTT_MEDS" / "event_configs.yaml"
-
-RULE_KINDS = {"schema", "ontology", "crosswalk", "hierarchy"}
-ONTOLOGY_KEYS = {"id", "pattern", "vocabulary", "normalize", "validate"}
-HIERARCHY_KEYS = {"id", "pattern", "group", "separator", "mode", "ignore", "nearest_only"}
-FROM_ONTOLOGY_KEYS = {"id", "from_ontology", "rules", "nearest_only"}
-VALIDATE_MODES = {"pack", "athena", "none"}
 
 # Synthetic cell values: public example ICD-10-CM codes, including a four-code list.
 ICD10_CELLS = ["I50.23, E11.9, N18.3, Z79.4", "S72.001A", "I10", "U07.1, J12.82"]
@@ -30,10 +28,6 @@ EXPECTED_DIAGNOSES = {
 }
 # Field of a code template: `{$col}`, `{$col ?? 'DEFAULT'}` or `{extract group N of /re/ from $col}`.
 FIELD = re.compile(r"\{(?:extract group (\d+) of /(.+?)/ from )?\$(\w+)(?: \?\? '([^']*)')?\}")
-
-
-def load_rules() -> dict:
-    return yaml.safe_load(RULES_FP.read_text())
 
 
 def code_templates() -> list[str]:
@@ -81,47 +75,36 @@ def test_rules_file_is_packaged():
     assert files("ALOTT_MEDS").joinpath("sumeds_rules.yaml").is_file()
 
 
-def test_rules_file_parses_and_is_well_formed():
-    rules = load_rules()
-    assert set(rules) <= RULE_KINDS
-    assert rules["schema"] == "sumeds-rules/0.1"
-    ids = [r["id"] for kind in ("ontology", "crosswalk", "hierarchy") for r in rules.get(kind) or []]
-    assert len(ids) == len(set(ids)), "duplicate rule ids"
-
-    ontology_ids = set()
-    for rule in rules["ontology"]:
-        assert set(rule) <= ONTOLOGY_KEYS and {"id", "pattern", "vocabulary"} <= set(rule), rule["id"]
-        assert "code" in re.compile(rule["pattern"]).groupindex, rule["id"]
-        assert rule["pattern"].startswith("^") and rule["pattern"].endswith("$"), rule["id"]
-        assert rule.get("validate", "pack") in VALIDATE_MODES, rule["id"]
-        assert rule["vocabulary"].strip() and "/" not in rule["vocabulary"], rule["id"]
-        for step in rule.get("normalize") or []:
-            assert set(step) == {"pattern", "replace"}
-            re.compile(step["pattern"])
-        ontology_ids.add(rule["id"])
-
-    for rule in rules["hierarchy"]:
-        if rule.get("from_ontology"):
-            assert set(rule) <= FROM_ONTOLOGY_KEYS, rule["id"]
-            assert set(rule.get("rules") or []) <= ontology_ids, rule["id"]
-            continue
-        assert set(rule) <= HIERARCHY_KEYS, rule["id"]
-        pattern = re.compile(rule["pattern"])
-        assert rule["group"] in pattern.groupindex, rule["id"]
-        assert (rule.get("mode") == "prefix") != ("separator" in rule), rule["id"]
+def test_rules_load_in_sumeds():
+    """Loading fails on any rule suMEDS rejects; each pattern must also span a whole code."""
+    rules = load_rules(RULES_FP)
+    for rule in (*rules.vocabulary_rules, *rules.hierarchy):
+        if rule.pattern is not None:
+            assert rule.pattern.pattern.startswith("^"), rule.id
+            assert rule.pattern.pattern.endswith("$"), rule.id
 
 
 def test_diagnosis_rule_matches_every_diagnosis_template():
-    (rule,) = load_rules()["ontology"]
-    pattern = re.compile(rule["pattern"])
+    rules = load_rules(RULES_FP)
+    assert not rules.crosswalk
+    (rule,) = rules.ontology
     examples = example_codes()
     assert set(EXPECTED_DIAGNOSES) <= examples, set(EXPECTED_DIAGNOSES) - examples
 
-    matched = {code: m.group("code") for code in examples if (m := pattern.search(code))}
-    assert matched == EXPECTED_DIAGNOSES
-    # Every diagnosis template yields a code the rule matches; no other family is matched.
+    resolved = {code: value for code in examples if (value := rule.resolve(code)) is not None}
+    assert resolved == EXPECTED_DIAGNOSES
+    # Every diagnosis template yields a code the rule resolves; no other family is matched.
     diagnosis_templates = [t for t in code_templates() if t.startswith('f"DIAGNOSIS//')]
     assert len(diagnosis_templates) == 8
     for template in diagnosis_templates:
-        assert pattern.search(render(template, ICD10_CELLS[0])), template
-    assert not pattern.search("DIAGNOSIS//ICD//10//X")
+        assert rule.resolve(render(template, ICD10_CELLS[0])), template
+    assert rule.resolve("DIAGNOSIS//ICD//10//X") is None
+
+
+def test_diagnosis_parents_come_from_the_diagnosis_rule():
+    """Same-dataset parents are the ICD-10-CM ancestors of the validated diagnosis codes."""
+    rules = load_rules(RULES_FP)
+    (hierarchy,) = rules.hierarchy
+    assert hierarchy.id == "alott-diagnosis-parents-in-dataset"
+    assert hierarchy.mode == "ontology"
+    assert hierarchy.rules == tuple(rule.id for rule in rules.ontology)

@@ -182,7 +182,7 @@ than in every ETL. This package ships the rules for it,
 [`src/ALOTT_MEDS/sumeds_rules.yaml`](src/ALOTT_MEDS/sumeds_rules.yaml):
 
 ```bash
-pip install sumeds # a release with rules support (newer than 0.3.2)
+pip install "sumeds>=0.4"
 suMEDS-enrich $MEDS_OUTPUT_DIR/metadata/codes.parquet -o codes_enriched.parquet \
 	--rules src/ALOTT_MEDS/sumeds_rules.yaml
 ```
