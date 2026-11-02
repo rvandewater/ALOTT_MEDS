@@ -1,0 +1,28 @@
+# suMEDS enrichment rules for ALOTT_MEDS code metadata (https://github.com/rvandewater/SumMEDS).
+#
+# The spec describes every code family from ALOTT's own tables and documentation except the
+# diagnoses, which MEDS-Extract cannot attach metadata to. suMEDS gives them the official ICD-10-CM
+# title and their ICD-10-CM parent codes:
+#
+#   suMEDS-enrich $MEDS_OUTPUT_DIR/metadata/codes.parquet -o codes_enriched.parquet \
+#     --rules src/ALOTT_MEDS/sumeds_rules.yaml
+#
+# Every pattern matches a code layout of `event_configs.yaml` exactly; tests/test_sumeds_rules.py
+# checks them against example codes built from that config.
+schema: sumeds-rules/0.1
+
+ontology:
+  # DIAGNOSIS//ICD//10//{code}, one code of admission.Primary_ICD10 or Secondary_ICD10. ALOTT writes
+  # ICD-10-CM codes with the dot after the category, the format of suMEDS's ICD-10-CM data and of
+  # OMOP concept codes. Validated codes get the CMS title and their ancestors as parents.
+  - id: alott-icd10cm-diagnoses
+    pattern: '^DIAGNOSIS//ICD//10//(?P<code>[A-Z][0-9][0-9A-Z](?:\.[0-9A-Z]{1,4})?)$'
+    vocabulary: ICD10CM
+    validate: pack
+
+hierarchy:
+  # Same-dataset parents: the nearest ICD-10-CM ancestor that is itself an ALOTT diagnosis code,
+  # e.g. DIAGNOSIS//ICD//10//I50.2 for DIAGNOSIS//ICD//10//I50.23.
+  - id: alott-diagnosis-parents-in-dataset
+    from_ontology: true
+    rules: [alott-icd10cm-diagnoses]

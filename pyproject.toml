@@ -31,12 +31,14 @@ dependencies = [
 
 [dependency-groups]
 # `shfmt-py` bundles the `shfmt` binary that the `mdformat-shfmt` pre-commit hook shells
-# out to, keeping local + CI behavior in lock step.
+# out to, keeping local + CI behavior in lock step. tests/test_sumeds_rules.py loads the packaged
+# rules with suMEDS itself.
 dev = [
     "pre-commit~=3.8",
     "ruff>=0.11,<1.0",
     "pytest~=9.0",
     "shfmt-py==3.12.0.2",
+    "sumeds>=0.4",
 ]
 
 [project.entry-points."MEDS_extract.pipelines"]
@@ -47,9 +49,9 @@ Homepage = "https://github.com/rvandewater/ALOTT_MEDS"
 Issues = "https://github.com/rvandewater/ALOTT_MEDS/issues"
 
 [tool.setuptools.package-data]
-# The MESSY spec is the whole ETL. It is not a Python file, so it has to be listed, or installed
-# wheels lack it.
-ALOTT_MEDS = ["event_configs.yaml"]
+# The MESSY spec is the whole ETL, and `sumeds_rules.yaml` holds the rules suMEDS uses to enrich
+# its code metadata. Neither is a Python file, so they have to be listed, or installed wheels lack them.
+ALOTT_MEDS = ["event_configs.yaml", "sumeds_rules.yaml"]
 
 [tool.ruff]
 target-version = "py311"
