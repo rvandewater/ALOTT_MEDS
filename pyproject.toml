@@ -21,30 +21,39 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 # This package ships no Python: the whole ETL is `event_configs.yaml`, run by
-# MEDS-Extract's own `meds-extract-run`. So there is exactly one dependency — the
-# `[download]` extra adds `meds-extract-download`, which the runner spawns to stage the
-# raw data from PhysioNet. It is capped below the next minor because MEDS-Extract 0.x
-# minors are breaking (MESSY syntax, runner CLI), so raise it deliberately when migrating.
-# MEDS-transforms, polars and hydra all arrive through it at the versions it fences;
-# duplicating those pins here would only create drift.
+# MEDS-Extract's own `meds-extract-run`. MEDS-Extract is capped below the next minor because
+# its 0.x minors are breaking (MESSY syntax, runner CLI), so raise it deliberately when
+# migrating. Its `[download]` extra adds `meds-extract-download`, which the runner spawns to
+# stage the raw data from PhysioNet. suMEDS provides `suMEDS-extract`, which runs this ETL and
+# then enriches its code metadata with the rules registered below. 0.6 is the first release
+# that writes `parent_names` as a code-to-name map; it is capped below the next minor for the
+# same reason (its rules format and CLI are still 0.x). MEDS-transforms, polars and hydra all
+# arrive through these two at the versions they fence; duplicating those pins here would only
+# create drift.
 dependencies = [
     "meds-extract[download]>=0.8.0,<0.9",
+    "sumeds>=0.6,<0.7",
 ]
 
 [dependency-groups]
 # `shfmt-py` bundles the `shfmt` binary that the `mdformat-shfmt` pre-commit hook shells
-# out to, keeping local + CI behavior in lock step. tests/test_sumeds_rules.py loads the packaged
-# rules with suMEDS itself.
+# out to, keeping local + CI behavior in lock step.
 dev = [
     "pre-commit~=3.8",
     "ruff>=0.11,<1.0",
     "pytest~=9.0",
     "shfmt-py==3.12.0.2",
-    "sumeds>=0.4",
 ]
 
+# Registers the spec with MEDS-Extract's generic runner, so `meds-extract-run spec=ALOTT` runs
+# the whole ETL.
 [project.entry-points."MEDS_extract.pipelines"]
 ALOTT = "ALOTT_MEDS:event_configs.yaml"
+
+# Registers the suMEDS rules under the same name, so `suMEDS-extract spec=ALOTT` and
+# `--rules ALOTT` find them.
+[project.entry-points."sumeds.rules"]
+ALOTT = "ALOTT_MEDS:sumeds_rules.yaml"
 
 [project.urls]
 Homepage = "https://github.com/rvandewater/ALOTT_MEDS"

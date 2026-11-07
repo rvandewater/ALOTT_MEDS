@@ -1,10 +1,11 @@
 """End-to-end run of the shipped ETL over a tiny, fully synthetic ALOTT-shaped input.
 
-This distribution ships no Python — it is `event_configs.yaml` plus the entry-point registration that
-names it `ALOTT`. So there is exactly one thing worth testing: that `meds-extract-run spec=ALOTT`
-resolves that registration, runs the pipeline over raw tables laid out the way the spec expects, and
-leaves a well-formed MEDS cohort behind. Driving it through the registered name rather than a path is
-deliberate: it makes this test cover the registration too.
+This distribution ships no Python — it is `event_configs.yaml` and `sumeds_rules.yaml` plus the
+entry-point registrations that name them `ALOTT`. This test covers the ETL: that
+`meds-extract-run spec=ALOTT` resolves that registration, runs the pipeline over raw tables laid out
+the way the spec expects, and leaves a well-formed MEDS cohort behind. Driving it through the
+registered name rather than a path is deliberate: it makes this test cover the registration too.
+`test_run_with_enrichment.py` runs `suMEDS-extract spec=ALOTT` over the same input.
 
 ALOTT has no public demo release, so the input is generated here: every table the spec reads, with
 the columns it reads, filled with made-up values. Nothing in it is derived from the real dataset. It

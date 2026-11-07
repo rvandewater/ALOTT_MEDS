@@ -3,8 +3,8 @@
 suMEDS validates the rules file itself (``sumeds.load_rules``) and resolves codes with the rule objects its
 enrichment uses, so these tests only state what ALOTT's codes must resolve to. The example codes are built
 from the code templates in ``event_configs.yaml`` with synthetic (public example) values, so a change to a
-code layout that the rules no longer match fails here. The diagnosis rule is validated against suMEDS's
-ontology data, which is fetched over the network, so its enrichment is not run here.
+code layout that the rules no longer match fails here. Nothing is read over the network; the enrichment
+itself runs offline in ``test_run_with_enrichment.py``.
 """
 
 import re
@@ -13,7 +13,7 @@ from importlib.resources import files
 from pathlib import Path
 
 import yaml
-from sumeds import load_rules
+from sumeds import load_rules, registered_rules
 
 ROOT = Path(__file__).parents[1]
 RULES_FP = ROOT / "src" / "ALOTT_MEDS" / "sumeds_rules.yaml"
@@ -73,6 +73,12 @@ def test_rules_file_is_packaged():
     package_data = tomllib.loads((ROOT / "pyproject.toml").read_text())["tool"]["setuptools"]["package-data"]
     assert "sumeds_rules.yaml" in package_data["ALOTT_MEDS"]
     assert files("ALOTT_MEDS").joinpath("sumeds_rules.yaml").is_file()
+
+
+def test_rules_are_registered_under_the_spec_name():
+    """`suMEDS-extract spec=ALOTT` and `--rules ALOTT` find the rules by this entry point."""
+    assert registered_rules()["ALOTT"] == "ALOTT_MEDS:sumeds_rules.yaml"
+    assert load_rules("ALOTT") == load_rules(RULES_FP)
 
 
 def test_rules_load_in_sumeds():

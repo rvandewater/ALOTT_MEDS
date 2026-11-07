@@ -5,6 +5,9 @@
 #
 #     meds-extract-run spec=ALOTT output_dir=$MEDS_OUTPUT_DIR
 #
+# `suMEDS-extract spec=ALOTT output_dir=$MEDS_OUTPUT_DIR` runs the same command and then enriches
+# `metadata/codes.parquet` with `sumeds_rules.yaml`, registered with suMEDS under the same name.
+#
 # Only the EMR tables (`emr-datasets/`) are extracted. The telemetry folders (alarms,
 # 2-second measurements, WFDB waveforms) are per-admission files whose subject and encounter
 # IDs live in the *file name*, not in a column, and they are several orders of magnitude
