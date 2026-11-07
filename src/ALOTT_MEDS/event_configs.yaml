@@ -176,7 +176,7 @@ emr-datasets/flowsheet:
 emr-datasets/icu:
   # The release keeps only the ICU stay's times, not which unit it was.
   #
-  # These three codes are constants, but MEDS-Extract 0.7 attaches `_metadata` only to a code
+  # These three codes are constants, but MEDS-Extract 0.8 attaches `_metadata` only to a code
   # whose expression references a source column (mmcdermott/MEDS_extract#166), so each is
   # guarded by its own time column: `if $t == $t` is false only where `$t` is null, and such
   # a row produces no event anyway. The guard changes no event; it gives the code a component

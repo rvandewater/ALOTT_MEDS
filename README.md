@@ -139,7 +139,7 @@ What each column means follows the table descriptions on the
 in the authors' release code ([Carescape](https://github.com/johnclawrence/Carescape), MIT);
 the descriptions paraphrase them and copy no text.
 
-MEDS-Extract 0.7 attaches `_metadata` only to a code whose expression references a source
+MEDS-Extract 0.8 attaches `_metadata` only to a code whose expression references a source
 column ([MEDS_extract#166](https://github.com/mmcdermott/MEDS_extract/issues/166)), so the
 three constant codes are written `'ICU_ADMISSION' if $startOffsetDate == $startOffsetDate`.
 The guard tests the event's own time column, which is false only where the time is null, and
@@ -153,7 +153,7 @@ NDC column.
 
 ### Null handling
 
-A null component of a composite code drops the row under MEDS-Extract 0.7. Components are
+A null component of a composite code drops the row under MEDS-Extract 0.8. Components are
 therefore coalesced with `?? 'UNK'` wherever a null must not drop the row (admission type and
 source, discharge destination, lab component, order type, medication administration action).
 
@@ -171,7 +171,7 @@ cells list up to four codes separated by a comma and a space; each code becomes 
 cell's full diagnosis text. No `_metadata` is attached, so diagnosis codes have neither a
 `description` nor `parent_codes`: each list position of each column is its own code template,
 one code occurs under several of them (as primary and as secondary, at different positions),
-and MEDS-Extract 0.7 rejects a code produced by two metadata-carrying code templates.
+and MEDS-Extract 0.8 rejects a code produced by two metadata-carrying code templates.
 The codes are dotted ICD-10-CM codes, so `DIAGNOSIS//ICD//10//<code>` maps to
 `ICD10CM//<code>` directly, and suMEDS adds their titles and parents (below).
 
@@ -238,7 +238,8 @@ showed what had to change:
 - Medication start and end times are always midnight, and `orders` carries results of its
     own (it holds no lab orders).
 
-All ten CSVs are valid UTF-8. On the full 1.0.0 EMR tables (6.3 GB of CSVs read),
+All ten CSVs are valid UTF-8, which is what MEDS-Extract 0.8's default encoding detection
+(`etl.encoding: auto`) reads them as. On the full 1.0.0 EMR tables (6.3 GB of CSVs read),
 `meds-extract-run` with MEDS-Extract 0.7.1 finishes in about 90 seconds on a laptop with about
 6.5 GB peak memory, producing 52.6M events for 18,472 subjects. Fewer lab, order and
 medication start/stop events come out than raw rows because identical events are merged: lab
