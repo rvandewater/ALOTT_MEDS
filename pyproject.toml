@@ -25,14 +25,15 @@ classifiers = [
 # its 0.x minors are breaking (MESSY syntax, runner CLI), so raise it deliberately when
 # migrating. Its `[download]` extra adds `meds-extract-download`, which the runner spawns to
 # stage the raw data from PhysioNet. suMEDS provides `suMEDS-extract`, which runs this ETL and
-# then enriches its code metadata with the rules registered below. 0.6 is the first release
-# that writes `parent_names` as a code-to-name map; it is capped below the next minor for the
-# same reason (its rules format and CLI are still 0.x). MEDS-transforms, polars and hydra all
+# then enriches its code metadata with the rules registered below. 0.6.1 is the first release
+# whose `suMEDS-extract` soft-fails enrichment (a site without internet still gets its ETL) and
+# records in `metadata/dataset.json` whether the build was enriched; it is capped below the next
+# minor for the same reason (its rules format and CLI are still 0.x). MEDS-transforms, polars and hydra all
 # arrive through these two at the versions they fence; duplicating those pins here would only
 # create drift.
 dependencies = [
     "meds-extract[download]>=0.8.0,<0.9",
-    "sumeds>=0.6,<0.7",
+    "sumeds>=0.6.1,<0.7",
 ]
 
 [dependency-groups]

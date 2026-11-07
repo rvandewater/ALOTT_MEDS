@@ -206,12 +206,22 @@ suMEDS-extract spec=ALOTT output_dir=$MEDS_OUTPUT_DIR -- --athena-csv /path/to/a
 suMEDS-extract spec=ALOTT output_dir=$MEDS_OUTPUT_DIR -- --offline
 ```
 
-Running it again on an existing output skips the pipeline stages that are already done and
-enriches again. To enrich the `codes.parquet` of an existing build instead:
+Enrichment is on by default and soft-fails: if it cannot run (a server without internet, for
+example), the ETL still succeeds with `metadata/codes.parquet` left exactly as `meds-extract-run`
+writes it, and a warning gives the command to enrich it later. `metadata/dataset.json` says whether
+a build is enriched: `sumeds_enrichment.enriched` is `true` (with the rules, pack source and
+coverage) or `false` (with the error and the `retry` command). To enrich a build afterwards, with
+the rules and options of the default run:
 
 ```bash
-suMEDS-enrich "$MEDS_OUTPUT_DIR/metadata/codes.parquet" -o "$MEDS_OUTPUT_DIR/metadata/codes.parquet" --rules ALOTT
+suMEDS-enrich $MEDS_OUTPUT_DIR
+# Air-gapped: from a copy of the sumeds-ontologies packs directory
+suMEDS-enrich $MEDS_OUTPUT_DIR --ontology-source /path/to/sumeds-ontologies/ontologies --offline
 ```
+
+For the plain, unenriched ETL, run `meds-extract-run` instead of `suMEDS-extract`. To make a failed
+enrichment an error (exit code 1), pass `-- --strict`. Running `suMEDS-extract` again on an existing
+output skips the pipeline stages that are already done and enriches again.
 
 Diagnosis codes are validated against suMEDS's versioned ontology data (sumeds-ontologies,
 pinned release), built from the CDC/NCHS ICD-10-CM files. The rules add:
@@ -349,7 +359,8 @@ version, the one-time PyPI setup and recovering from a failed release.
 ALOTT has no open demo, so CI runs the spec end to end over a small **synthetic** input
 generated in [`tests/e2e_synthetic_test.py`](https://github.com/rvandewater/ALOTT_MEDS/blob/main/tests/e2e_synthetic_test.py), and
 [`tests/test_run_with_enrichment.py`](tests/test_run_with_enrichment.py) runs
-`suMEDS-extract spec=ALOTT` over the same input against a tiny synthetic ontology pack, offline.
+`suMEDS-extract spec=ALOTT` over the same input against a tiny synthetic ontology pack, offline,
+and against an empty one, to check the soft failure and its `suMEDS-enrich` retry.
 [`tests/test_sumeds_rules.py`](tests/test_sumeds_rules.py) checks that the rules are registered as
 `ALOTT` and match the diagnosis codes the spec writes. These check the spec's mechanics, not its
 agreement with the real release. Never commit raw ALOTT data or MEDS output derived from it.
