@@ -4,8 +4,9 @@ This distribution ships no Python — it is `event_configs.yaml` and `sumeds_rul
 entry-point registrations that name them `ALOTT`. This test covers the ETL: that
 `meds-extract-run spec=ALOTT` resolves that registration, runs the pipeline over raw tables laid out
 the way the spec expects, and leaves a well-formed MEDS cohort behind. Driving it through the
-registered name rather than a path is deliberate: it makes this test cover the registration too.
-`test_run_with_enrichment.py` runs `suMEDS-extract spec=ALOTT` over the same input.
+registered name rather than a path is deliberate: it makes this test cover the registration too. It
+leaves out the spec's suMEDS enrichment stage (`skip_stages=[sumeds_enrich]`), which would otherwise
+fetch ontology packs; `test_run_with_enrichment.py` runs it over the same input, offline.
 
 ALOTT has no public demo release, so the input is generated here: every table the spec reads, with
 the columns it reads, filled with made-up values. Nothing in it is derived from the real dataset. It
@@ -23,7 +24,7 @@ from tempfile import TemporaryDirectory
 
 import polars as pl
 import pyarrow.parquet as pq
-from meds import CodeMetadataSchema
+from meds import CodeMetadataSchema, DataSchema
 
 SPEC = "ALOTT"
 RELEASE = "1.0.0"
@@ -170,6 +171,7 @@ def test_e2e_synthetic():
             f"output_dir={out.resolve()!s}",
             "do_download=false",
             f"input_dir={raw.resolve()!s}",
+            "skip_stages=[sumeds_enrich]",
         ]
         result = subprocess.run(command, capture_output=True, check=False, env=env)
         assert result.returncode == 0, (
@@ -190,6 +192,15 @@ def test_e2e_synthetic():
 
         data = pl.concat([pl.read_parquet(fp) for fp in data_files], how="diagonal_relaxed")
         assert data["subject_id"].n_unique() == N_SUBJECTS
+
+        # The `etl:` descriptors and extension-column categories are written to dataset.json, and every
+        # other extension column is listed under `other_extension_columns`.
+        assert dataset_json["license"] == "PhysioNet Restricted Health Data License 1.5.0"
+        assert dataset_json["description_uri"] == f"https://physionet.org/content/alott/{RELEASE}/"
+        assert dataset_json["raw_source_id_columns"] == ["hadm_id"]
+        extension = set(data.columns) - set(DataSchema.schema().names)
+        assert set(dataset_json["other_extension_columns"]) == extension - {"hadm_id"}
+        assert "code_modifier_columns" not in dataset_json
 
         # Every table in the spec must have produced at least one event.
         prefixes = data["code"].str.split("//").list.first().unique().to_list()

@@ -21,19 +21,20 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 # This package ships no Python: the whole ETL is `event_configs.yaml`, run by
-# MEDS-Extract's own `meds-extract-run`. MEDS-Extract is capped below the next minor because
-# its 0.x minors are breaking (MESSY syntax, runner CLI), so raise it deliberately when
-# migrating. Its `[download]` extra adds `meds-extract-download`, which the runner spawns to
-# stage the raw data from PhysioNet. suMEDS provides `suMEDS-extract`, which runs this ETL and
-# then enriches its code metadata with the rules registered below. 0.6.1 is the first release
-# whose `suMEDS-extract` soft-fails enrichment (a site without internet still gets its ETL) and
-# records in `metadata/dataset.json` whether the build was enriched; it is capped below the next
-# minor for the same reason (its rules format and CLI are still 0.x). MEDS-transforms, polars and hydra all
-# arrive through these two at the versions they fence; duplicating those pins here would only
-# create drift.
+# MEDS-Extract's own `meds-extract-run`. 0.8.1 is the first MEDS-Extract that runs the extension
+# stages a spec declares (`etl.post_stages`) and writes the `etl:` descriptors and extension-column
+# categories into `metadata/dataset.json`. It is capped below the next minor because its 0.x
+# minors are breaking (MESSY syntax, runner CLI), so raise it deliberately when migrating. Its
+# `[download]` extra adds `meds-extract-download`, which the runner spawns to stage the raw data
+# from PhysioNet. suMEDS 0.6.2 registers the `sumeds_enrich` stage the spec declares, which
+# enriches the code metadata with the rules registered below, soft-fails (a site without internet
+# still gets its ETL) and records in `metadata/dataset.json` whether the build was enriched; it is
+# capped below the next minor for the same reason (its rules format and CLI are still 0.x).
+# MEDS-transforms, polars and hydra all arrive through these two at the versions they fence;
+# duplicating those pins here would only create drift.
 dependencies = [
-    "meds-extract[download]>=0.8.0,<0.9",
-    "sumeds>=0.6.1,<0.7",
+    "meds-extract[download]>=0.8.1,<0.9",
+    "sumeds>=0.6.2,<0.7",
 ]
 
 [dependency-groups]
@@ -51,7 +52,7 @@ dev = [
 [project.entry-points."MEDS_extract.pipelines"]
 ALOTT = "ALOTT_MEDS:event_configs.yaml"
 
-# Registers the suMEDS rules under the same name, so `suMEDS-extract spec=ALOTT` and
+# Registers the suMEDS rules under the same name, so the spec's `sumeds_enrich` stage and
 # `--rules ALOTT` find them.
 [project.entry-points."sumeds.rules"]
 ALOTT = "ALOTT_MEDS:sumeds_rules.yaml"

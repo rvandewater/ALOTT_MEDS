@@ -76,9 +76,15 @@ def test_rules_file_is_packaged():
 
 
 def test_rules_are_registered_under_the_spec_name():
-    """`suMEDS-extract spec=ALOTT` and `--rules ALOTT` find the rules by this entry point."""
+    """The spec's `sumeds_enrich` stage and `--rules ALOTT` find the rules by this entry point."""
     assert registered_rules()["ALOTT"] == "ALOTT_MEDS:sumeds_rules.yaml"
     assert load_rules("ALOTT") == load_rules(RULES_FP)
+
+
+def test_spec_enriches_with_these_rules():
+    """`meds-extract-run spec=ALOTT` ends with suMEDS's enrichment stage, using these rules."""
+    etl = yaml.safe_load(CONFIG_FP.read_text())["etl"]
+    assert etl["post_stages"] == [{"sumeds_enrich": {"rules": "ALOTT"}}]
 
 
 def test_rules_load_in_sumeds():
