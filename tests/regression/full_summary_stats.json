@@ -207,13 +207,27 @@
     }
   },
   "dataset": {
-    "created_at": "2026-11-07T19:38:52.203106+00:00",
+    "created_at": "2026-11-08T00:38:49.490678+00:00",
     "dataset_name": "ALOTT",
     "dataset_version": "1.0.0:0.0.1",
+    "description_uri": "https://physionet.org/content/alott/1.0.0/",
     "etl_name": "MEDS_transforms",
     "etl_version": "0.7.0",
+    "license": "PhysioNet Restricted Health Data License 1.5.0",
     "meds_version": "0.4.1",
+    "other_extension_columns": [
+      "source_block",
+      "diagnosis_rank",
+      "flow_type",
+      "dose_unit",
+      "frequency",
+      "route",
+      "order_status"
+    ],
     "present": true,
+    "raw_source_id_columns": [
+      "hadm_id"
+    ],
     "sumeds_enrichment": {
       "athena": false,
       "coverage": {
@@ -228,7 +242,7 @@
         ]
       },
       "enriched": true,
-      "enriched_at": "2026-11-07T19:39:03Z",
+      "enriched_at": "2026-11-08T00:39:00Z",
       "ontology_source": "rvandewater/sumeds-ontologies@v0.2.0",
       "options": {
         "child_codes": false,
@@ -240,8 +254,8 @@
         "sibling_codes": false
       },
       "rules": "ALOTT",
-      "rules_sha256": "984f98ecf3835fda70f0cbfa875edba39c02cad89a3a4fc2dc01b148a6225b67",
-      "sumeds_version": "0.6.1"
+      "rules_sha256": "bd186ba3498865ba59f51ad4839d076bdfc5fa9ecbdad97650eb1c0132481da2",
+      "sumeds_version": "0.6.2"
     }
   },
   "dataset_digest": {
@@ -251,7 +265,7 @@
       "data/train/1.parquet": "sha256:2d4139df9428ed91cbdfec4534f46b3a1bd72da2ae9ece08f81f654f7360724d",
       "data/tuning/0.parquet": "sha256:ccd3173964622bebc3d7b167bce17ade81a4882f3bd39d9519eef45fbca33231",
       "metadata/codes.parquet": "sha256:2f658b329ce40be3fec7309c95756f9adcdd18cb49cd58e19f07f48fbb403cb4",
-      "metadata/dataset.json": "sha256:7b4e28320806c9fcd5c56182499a42a72f7424de1de4097bbe86e2007dcb00f4",
+      "metadata/dataset.json": "sha256:14bbdb4684645e1283fac3c3e69d62acb7945099bcbcb7bf0d888e2af00a1b7c",
       "metadata/subject_splits.parquet": "sha256:c335eef9c47a72a89ec19eb160d8739c17c22b62b93a2ef171813102d5d9484f"
     },
     "code_metadata": "sha256:1b17798e398c606a262233b40b6c6f01cab5be94cbc9dd2b87e4283dae974512",
@@ -260,12 +274,12 @@
       "digest": "sha256:ce834a3a664ba1140938f1670fdc9ef51029fc58043ac691132032ac606857c4",
       "n_files": 4
     },
-    "dataset_metadata": "sha256:fce0d5674cb9043e27520937ec9ad0f771107f083bf374200acad4c11d07c3e3",
+    "dataset_metadata": "sha256:5056ea771fce8256888d8e6b3c9a6d592140890b25502c9d11a499b5fb041cb2",
     "method": "files",
     "n_files": 7,
     "subject_splits": "sha256:1186d1f82736a8e496e6619824605f6d822e5ed5b7d8130b475e4b92bff4d27d"
   },
-  "extracted_at": "2026-11-07T19:39:07.654174",
+  "extracted_at": "2026-11-08T00:39:04.847086",
   "layout": {
     "code_metadata_columns": {
       "code": "String",
