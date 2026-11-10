@@ -1,23 +1,23 @@
 {
   "code_metadata": {
     "description_length": {
-      "mean": 105.447,
-      "n": 43783,
+      "mean": 39.303,
+      "n": 9356,
       "quantiles": {
-        "p1": 13.0,
-        "p25": 71.0,
-        "p5": 24.0,
-        "p50": 98.0,
-        "p75": 150.0,
-        "p95": 168.0,
-        "p99": 179.0
+        "p1": 8.0,
+        "p25": 25.0,
+        "p5": 13.0,
+        "p50": 35.0,
+        "p75": 49.0,
+        "p95": 76.0,
+        "p99": 127.0
       },
-      "std": 48.2874
+      "std": 22.5406
     },
     "n_codes": 47130,
     "n_data_codes_missing_from_metadata": 0,
     "n_metadata_codes_absent_from_data": 0,
-    "n_with_description": 43783,
+    "n_with_description": 9356,
     "n_with_parent_codes": null,
     "ontology": {
       "present": false
@@ -145,36 +145,36 @@
     }
   },
   "dataset": {
-    "created_at": "2026-11-04T15:22:14.893182+00:00",
+    "created_at": "2026-11-03T23:04:26.987080+00:00",
     "dataset_name": "ALOTT",
     "dataset_version": "1.0.0:0.0.1",
     "etl_name": "MEDS_transforms",
-    "etl_version": "0.7.0",
+    "etl_version": "0.7.1",
     "meds_version": "0.4.1",
     "present": true
   },
   "dataset_digest": {
     "by_file": {
-      "data/held_out/0.parquet": "sha256:6c76ebf3ccc6018dda7ef7e4419eed58866f16f8c0953db3a71e5aa36dacbf77",
-      "data/train/0.parquet": "sha256:d06a75968566973e2ffd2c75d2f2629ad8bdb8263049a8ddae7748c45e2be69d",
-      "data/train/1.parquet": "sha256:2d4139df9428ed91cbdfec4534f46b3a1bd72da2ae9ece08f81f654f7360724d",
-      "data/tuning/0.parquet": "sha256:ccd3173964622bebc3d7b167bce17ade81a4882f3bd39d9519eef45fbca33231",
-      "metadata/codes.parquet": "sha256:8254bfaef528dd7ec4e6159211ceae533f4711d0aaa84648e10aef841a3cf5ef",
-      "metadata/dataset.json": "sha256:7ccd3b39672f7e33ff20ddf14968fb6879414d389a930489bc16a503fc40a92e",
-      "metadata/subject_splits.parquet": "sha256:c335eef9c47a72a89ec19eb160d8739c17c22b62b93a2ef171813102d5d9484f"
+      "data/held_out/0.parquet": "sha256:56a8b1fc61c9450a6a81206d848a995853d4fb4ff5f229d2f3c509e03b1ed86c",
+      "data/train/0.parquet": "sha256:12220d19d8b514c3cdad45a23af108b66459629204405c0707ef5c24fa143991",
+      "data/train/1.parquet": "sha256:3b6c0b886b2af34a8b0100dadb8f4b2f34bf1eae41d8e949ec5d9efcbe2d19e1",
+      "data/tuning/0.parquet": "sha256:c094e9445f2ee43222ced530068b345230baaac5868f8397aea7bc55465af41d",
+      "metadata/codes.parquet": "sha256:13abb052e04785e20601bba9658340d2731b338c5898c00c8989e18ae646589e",
+      "metadata/dataset.json": "sha256:00c8ea41aa0db9be8712aca683716c09108edb02e9ec4e8c88f97ab90cb45091",
+      "metadata/subject_splits.parquet": "sha256:7d60dedb59291d7bd213bc7b446325e888bdb8673236bcd70fa46b4b3c0b5e88"
     },
-    "code_metadata": "sha256:4eb068965ef556d384db0c012deb4bbff4c38982c18e190b69da74973d2f2c8f",
-    "combined": "sha256:cead6a561d6254afd8d715a41b8e69071c71d8cbfc8d8fba3a6c0c4cf111d190",
+    "code_metadata": "sha256:03a6e8266912fbcaa5cc42df43751f474bdaaada4d8863d351407c9b41f3c593",
+    "combined": "sha256:f8fbcbf005c40b03ca8617033dd9ccc8cd61030cf1af3f2c278db60acd86fd03",
     "data": {
-      "digest": "sha256:ce834a3a664ba1140938f1670fdc9ef51029fc58043ac691132032ac606857c4",
+      "digest": "sha256:43f7794d11c3d57013f64f02d19bbdf0e26f43e5f57ec33adb75c26157a95cea",
       "n_files": 4
     },
-    "dataset_metadata": "sha256:73ca58f6c48b054313ceeb1696fe26cd5522dcc7b6d1eb84603b47a1fddf7b29",
+    "dataset_metadata": "sha256:adc6b3da8cef7fc242f75a3578e56e33394f3539615ec926e5824f2c705812e7",
     "method": "files",
     "n_files": 7,
-    "subject_splits": "sha256:1186d1f82736a8e496e6619824605f6d822e5ed5b7d8130b475e4b92bff4d27d"
+    "subject_splits": "sha256:50e69f91eed178395bac11fdd8ed269d3b5ae836bbb7892f8ed4a414fbbe0b6e"
   },
-  "extracted_at": "2026-11-04T22:16:51.111265",
+  "extracted_at": "2026-11-10T22:15:30.900718",
   "layout": {
     "code_metadata_columns": {
       "code": "String",
@@ -236,8 +236,22 @@
     ],
     "shard_names_digest": "sha256:032cdb12ea0539c29b7226dd2e844417b2085e1019a358f09b0b10d44daa09be"
   },
-  "meds_summary_stats_version": "0.0.3",
+  "meds_summary_stats_version": "0.0.4",
   "per_subject": {
+    "measurements_per_day": {
+      "mean": 43.9523,
+      "n": 18471,
+      "quantiles": {
+        "p1": 1.0047,
+        "p25": 6.7354,
+        "p5": 1.87146,
+        "p50": 18.1316,
+        "p75": 51.5902,
+        "p95": 175.268,
+        "p99": 283.726
+      },
+      "std": 70.4728
+    },
     "n_events": {
       "mean": 1286.52,
       "n": 18472,
@@ -315,7 +329,7 @@
     "n_subjects_in_splits_without_data": 0,
     "present": true
   },
-  "stats_schema_version": 1,
+  "stats_schema_version": 2,
   "time": {
     "by_year": {
       "2015": {
