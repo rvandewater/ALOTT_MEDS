@@ -44,18 +44,12 @@ jobs:
         run: uv sync --locked
 
       - name: Generate and extract synthetic data
-        # MESSY-synth 0.0.1 requires MEDS-Extract <0.8, while the ETL runs on 0.8, so it runs in a
-        # tool environment of its own. Its MEDS-Extract rejects the `etl:` keys new in 0.8.1 (the
-        # extension stages and the dataset.json descriptors), so it reads a copy of the spec without
-        # them; they don't affect which raw columns the spec reads. The extraction runs the shipped
-        # spec, suMEDS enrichment stage included, with this project's locked MEDS-Extract. Drop the
-        # copy once MESSY-synth supports MEDS-Extract 0.8.1.
+        # MESSY-synth isn't a project dependency, so it runs in a tool environment of its own; it reads
+        # the shipped spec with the same MEDS-Extract minor version as the ETL. The extraction runs
+        # that spec, suMEDS enrichment stage included, with this project's locked MEDS-Extract.
         run: |
-          awk '/^etl:/ { etl = 1; print; next } etl && /^[^ ]/ { etl = 0 } /^$/ { drop = 0 }
-            etl && /^  [a-z_]+:/ { drop = $1 ~ /^(pre_stages|post_stages|license|location_uri|description_uri|raw_source_id_columns|code_modifier_columns|additional_value_modality_columns|site_id_columns):$/ }
-            !(etl && drop)' ./src/ALOTT_MEDS/event_configs.yaml >event_configs_0.7.yaml
-          uvx --python ${{ matrix.python-version }} --from "MESSY_synth==0.0.1" \
-            MESSY-synth ./event_configs_0.7.yaml -o raw_synthetic/ --explain
+          uvx --python ${{ matrix.python-version }} --from "MESSY_synth==0.1.0" \
+            MESSY-synth ./src/ALOTT_MEDS/event_configs.yaml -o raw_synthetic/ --explain
           uv run --locked meds-extract-run spec=ALOTT output_dir=./ALOTT_meds_synth \
             input_dir=raw_synthetic do_download=false
           for f in dataset.json codes.parquet subject_splits.parquet; do
