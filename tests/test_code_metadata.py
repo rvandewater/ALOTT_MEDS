@@ -31,7 +31,7 @@ def _family(code_expr: str) -> str:
 
 def test_every_family_is_described_except_diagnoses():
     """Diagnoses carry no `_metadata`: one ICD code is produced by several of the per-position blocks, and
-    MEDS-Extract 0.7 rejects a code produced by two metadata-carrying templates."""
+    MEDS-Extract 0.8 rejects a code produced by two metadata-carrying templates."""
     described, undescribed = set(), set()
     for _table, _name, event in _events():
         family = _family(event["code"])

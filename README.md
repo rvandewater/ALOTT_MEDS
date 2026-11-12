@@ -35,7 +35,15 @@ export DATASET_DOWNLOAD_PASSWORD=$PHYSIONET_PASSWORD
 meds-extract-run spec=ALOTT output_dir=$MEDS_OUTPUT_DIR
 ```
 
-That downloads only the `emr-datasets/` folder of the ALOTT 1.0.0 release (the telemetry is
+This one command runs the ETL and then enriches its code metadata with
+[suMEDS](https://github.com/rvandewater/SumMEDS) (installed with this package): the spec ends with
+suMEDS's `sumeds_enrich` stage, which fills the official ICD-10-CM titles and parents of the
+diagnosis codes into `metadata/codes.parquet`. If it cannot (no internet, say), the ETL still
+succeeds, unenriched, and `suMEDS-enrich $MEDS_OUTPUT_DIR` finishes it later. Add
+`skip_stages=[sumeds_enrich]` for the plain ETL. See
+[Enriching code metadata with suMEDS](#enriching-code-metadata-with-sumeds).
+
+The run downloads only the `emr-datasets/` folder of the ALOTT 1.0.0 release (the telemetry is
 skipped) into `$MEDS_OUTPUT_DIR/.meds_extract_run/raw_input` and runs the full MEDS-Extract
 pipeline, writing `data/` and `metadata/` to `$MEDS_OUTPUT_DIR`. Files that already exist and
 verify against PhysioNet's checksums are skipped, so an interrupted download resumes. Pass
@@ -57,7 +65,7 @@ meds-extract-run spec=ALOTT output_dir=$MEDS_OUTPUT_DIR do_download=false input_
 > (`admission.csv`, `labs.csv`, ...), point `input_dir` at a directory holding an
 > `emr-datasets` link to it.
 
-Run `meds-extract-run --help` for the full set of arguments.
+Run `meds-extract-run --help` and `suMEDS-enrich --help` for the full set of arguments.
 
 ## Configuration
 
@@ -69,8 +77,18 @@ and what stamps the output's `metadata/dataset.json` with
 `<ALOTT release>:<this package's version>`. The file holds:
 
 - a `sources:` block pointing at the PhysioNet release, restricted to `emr-datasets/*`;
-- an `etl:` block with the run's few knobs;
+- an `etl:` block with the run's few knobs, what `metadata/dataset.json` says about the
+    dataset, and the suMEDS enrichment stage that runs after the ETL;
 - one block per raw EMR table describing the events extracted from it.
+
+`metadata/dataset.json` gives the release's `license` and PhysioNet page (`description_uri`), and
+lists `hadm_id`, the encounter key, under `raw_source_id_columns`. MEDS-Extract lists every other
+extension column (`diagnosis_rank`, `flow_type`, `dose_unit`, ...) under `other_extension_columns`.
+
+A second entry point registers
+[`src/ALOTT_MEDS/sumeds_rules.yaml`](src/ALOTT_MEDS/sumeds_rules.yaml) with suMEDS under the same
+name, which is how the spec's enrichment stage finds them (see
+[Enriching code metadata with suMEDS](#enriching-code-metadata-with-sumeds)).
 
 ### Timestamps
 
@@ -139,7 +157,7 @@ What each column means follows the table descriptions on the
 in the authors' release code ([Carescape](https://github.com/johnclawrence/Carescape), MIT);
 the descriptions paraphrase them and copy no text.
 
-MEDS-Extract 0.7 attaches `_metadata` only to a code whose expression references a source
+MEDS-Extract 0.8 attaches `_metadata` only to a code whose expression references a source
 column ([MEDS_extract#166](https://github.com/mmcdermott/MEDS_extract/issues/166)), so the
 three constant codes are written `'ICU_ADMISSION' if $startOffsetDate == $startOffsetDate`.
 The guard tests the event's own time column, which is false only where the time is null, and
@@ -153,7 +171,7 @@ NDC column.
 
 ### Null handling
 
-A null component of a composite code drops the row under MEDS-Extract 0.7. Components are
+A null component of a composite code drops the row under MEDS-Extract 0.8. Components are
 therefore coalesced with `?? 'UNK'` wherever a null must not drop the row (admission type and
 source, discharge destination, lab component, order type, medication administration action).
 
@@ -171,7 +189,7 @@ cells list up to four codes separated by a comma and a space; each code becomes 
 cell's full diagnosis text. No `_metadata` is attached, so diagnosis codes have neither a
 `description` nor `parent_codes`: each list position of each column is its own code template,
 one code occurs under several of them (as primary and as secondary, at different positions),
-and MEDS-Extract 0.7 rejects a code produced by two metadata-carrying code templates.
+and MEDS-Extract 0.8 rejects a code produced by two metadata-carrying code templates.
 The codes are dotted ICD-10-CM codes, so `DIAGNOSIS//ICD//10//<code>` maps to
 `ICD10CM//<code>` directly, and suMEDS adds their titles and parents (below).
 
@@ -179,12 +197,66 @@ The codes are dotted ICD-10-CM codes, so `DIAGNOSIS//ICD//10//<code>` maps to
 
 Vocabulary work is maintained once, in [suMEDS](https://github.com/rvandewater/SumMEDS), rather
 than in every ETL. This package ships the rules for it,
-[`src/ALOTT_MEDS/sumeds_rules.yaml`](src/ALOTT_MEDS/sumeds_rules.yaml):
+[`src/ALOTT_MEDS/sumeds_rules.yaml`](src/ALOTT_MEDS/sumeds_rules.yaml), registered in suMEDS's
+`sumeds.rules` entry-point group under the same name as the MEDS-Extract spec, `ALOTT`, so
+`--rules ALOTT` works for any suMEDS command. The spec runs them as its last stage:
+
+```yaml
+etl:
+  post_stages:
+    - sumeds_enrich: {rules: ALOTT}
+```
+
+The stage replaces `metadata/codes.parquet` only once the enriched table is complete, and it stays
+valid MEDS code metadata. By default the ICD-10-CM data comes from suMEDS's ontology packs, fetched
+from GitHub on first use and cached; no Athena download is needed.
+
+`metadata/dataset.json` says whether a build is enriched: `sumeds_enrichment.enriched` is `true`
+(with the rules, pack source and coverage) or `false` (with the error and the `retry` command).
 
 ```bash
-pip install "sumeds>=0.4"
-suMEDS-enrich $MEDS_OUTPUT_DIR/metadata/codes.parquet -o codes_enriched.parquet \
-	--rules src/ALOTT_MEDS/sumeds_rules.yaml
+jq .sumeds_enrichment.enriched $MEDS_OUTPUT_DIR/metadata/dataset.json
+```
+
+Enrichment soft-fails: if it cannot run (a server without internet, for example), the ETL still
+succeeds with `metadata/codes.parquet` left exactly as MEDS-Extract writes it, and `dataset.json`
+records `"enriched": false`. The warning, with the command that finishes the enrichment, is in
+`$MEDS_OUTPUT_DIR/.logs/pipeline.log`, not on the console. MEDS-Extract marks the stage done either
+way, so running `meds-extract-run` again does not retry it. Enrich the build afterwards, with the
+rules and options of the failed run:
+
+```bash
+suMEDS-enrich $MEDS_OUTPUT_DIR
+# Air-gapped: from a copy of the sumeds-ontologies packs directory
+suMEDS-enrich $MEDS_OUTPUT_DIR --ontology-source /path/to/sumeds-ontologies/ontologies --offline
+```
+
+For the plain, unenriched ETL, leave the stage out with `skip_stages=[sumeds_enrich]`:
+
+```bash
+meds-extract-run spec=ALOTT output_dir=$MEDS_OUTPUT_DIR skip_stages=[sumeds_enrich]
+```
+
+The stage takes the `suMEDS-enrich` options, spelled with underscores. Set them for one run with
+`overrides=`, as `++stage_cfg.<option>` (the override reaches every stage of the pipeline, and only
+this one declares the option, hence the `++`):
+
+```bash
+# Make a failed enrichment fail the run (exit code 1):
+meds-extract-run spec=ALOTT output_dir=$MEDS_OUTPUT_DIR "overrides=['++stage_cfg.strict=true']"
+# Also look codes up in your own OHDSI Athena download:
+meds-extract-run spec=ALOTT output_dir=$MEDS_OUTPUT_DIR "overrides=['++stage_cfg.athena_csv=/path/to/athena']"
+# Read the packs from a local copy (or set SUMEDS_ONTOLOGY_SOURCE=/path/to/ontologies):
+meds-extract-run spec=ALOTT output_dir=$MEDS_OUTPUT_DIR "overrides=['++stage_cfg.ontology_source=/path/to/ontologies']"
+```
+
+On a cluster whose compute nodes have no internet access, fill a cache on shared storage once from
+a login node, then run with `offline`, so nothing tries the network:
+
+```bash
+export XDG_CACHE_HOME=/shared/project/cache # on the login node and the compute nodes
+suMEDS-enrich --prefetch --rules ALOTT      # login node: the pinned pack release, about 30 MB
+meds-extract-run spec=ALOTT output_dir=$MEDS_OUTPUT_DIR "overrides=['++stage_cfg.offline=true']"
 ```
 
 Diagnosis codes are validated against suMEDS's versioned ontology data (sumeds-ontologies,
@@ -192,13 +264,19 @@ pinned release), built from the CDC/NCHS ICD-10-CM files. The rules add:
 
 - `alott-icd10cm-diagnoses`: each `DIAGNOSIS//ICD//10//<code>` with the dotted ICD-10-CM shape
     that is a valid ICD-10-CM code gets the official title as its `description`, and
-    `ICD10CM//<code>` followed by its ICD-10-CM ancestors as `parent_codes`.
+    `ICD10CM//<code>` followed by its ICD-10-CM ancestors as `parent_codes`, with the title of
+    each in `parent_names`.
 - `alott-diagnosis-parents-in-dataset`: same-dataset parents. A diagnosis code also gets the
     nearest ICD-10-CM ancestor that is itself an ALOTT diagnosis code, e.g.
     `DIAGNOSIS//ICD//10//I50.2` for `DIAGNOSIS//ICD//10//I50.23`.
 
 suMEDS fills only missing descriptions, never removes or rewrites existing metadata, and writes
-parents as `VOCABULARY//CODE`. The ETL alone emits no diagnosis descriptions or parent codes.
+parents as `VOCABULARY//CODE`. The other code families keep the descriptions the spec gives them
+and get no parents: none of them is a standard vocabulary. `parent_names` is a map from each parent
+code to its name (suMEDS 0.6 and later), stored in Parquet as `map<string, string>`, which Polars 2
+reads as `pl.Map` and Polars 1 as a list of `key`/`value` structs. The plain ETL
+(`skip_stages=[sumeds_enrich]`) emits no diagnosis descriptions or parent codes. The same rules work with
+`suMEDS … --rules ALOTT` to build a privacy-masked code catalog of the output.
 
 ### Other tables
 
@@ -238,7 +316,8 @@ showed what had to change:
 - Medication start and end times are always midnight, and `orders` carries results of its
     own (it holds no lab orders).
 
-All ten CSVs are valid UTF-8. On the full 1.0.0 EMR tables (6.3 GB of CSVs read),
+All ten CSVs are valid UTF-8, which is what MEDS-Extract 0.8's default encoding detection
+(`etl.encoding: auto`) reads them as. On the full 1.0.0 EMR tables (6.3 GB of CSVs read),
 `meds-extract-run` with MEDS-Extract 0.7.1 finishes in about 90 seconds on a laptop with about
 6.5 GB peak memory, producing 52.6M events for 18,472 subjects. Fewer lab, order and
 medication start/stop events come out than raw rows because identical events are merged: lab
@@ -276,7 +355,8 @@ The number of subjects per shard is `n_subjects_per_shard` in the spec's `etl:` 
 
 [`tests/regression/full_summary_stats.json`](tests/regression/full_summary_stats.json) is a
 [meds_summary_stats](https://github.com/Medical-Event-Data-Standard/meds_summary_stats) fingerprint of
-the MEDS dataset this ETL builds from the full ALOTT 1.0.0 release: subject, event and measurement
+the MEDS dataset this ETL builds from the full ALOTT 1.0.0 release with `meds-extract-run spec=ALOTT`,
+so its code-metadata coverage includes the suMEDS enrichment. It covers subject, event and measurement
 counts, digests of the code vocabulary, per-subject, value and time distributions, code-metadata
 coverage, the splits and the schema. It names no code and reports no cell of fewer than 20 subjects and
 no minimum or maximum, which is what makes it safe to publish. Because it is committed next to the ETL,
@@ -292,13 +372,14 @@ scripts/summary_stats.sh full --input-dir $RAW_INPUT_DIR
 scripts/summary_stats.sh full --meds-dir $MEDS_OUTPUT_DIR
 ```
 
-Both print how the statistics changed against the committed baseline before overwriting it. Add
+Both print how the statistics changed against the committed baseline before overwriting it, and
+refuse a build whose enrichment failed (finish it with `suMEDS-enrich` first). Add
 `--compare` to check a build without writing anything; it exits 1 when
 [`tests/regression/policy.yaml`](tests/regression/policy.yaml) flags an error. Rebuilding the same
 commit reproduces the baseline exactly, so any finding is a change in the output. CI cannot rebuild the
 credentialed release, so the [Summary stats workflow](.github/workflows/summary-stats.yaml) only warns
-when a pull request changes `src/` without regenerating the baseline. A MEDS-Extract or polars upgrade
-can also move the output, so check it with `--compare`.
+when a pull request changes `src/` (the spec or the suMEDS rules) without regenerating the baseline. A
+MEDS-Extract, suMEDS or polars upgrade can also move the output, so check it with `--compare`.
 
 ## Development
 
@@ -313,9 +394,14 @@ a tag of that exact version, which publishes to PyPI and creates the GitHub rele
 version, the one-time PyPI setup and recovering from a failed release.
 
 ALOTT has no open demo, so CI runs the spec end to end over a small **synthetic** input
-generated in [`tests/e2e_synthetic_test.py`](https://github.com/rvandewater/ALOTT_MEDS/blob/main/tests/e2e_synthetic_test.py). That checks the
-spec's mechanics, not its agreement with the real release. Never commit raw ALOTT data or
-MEDS output derived from it.
+generated in [`tests/e2e_synthetic_test.py`](https://github.com/rvandewater/ALOTT_MEDS/blob/main/tests/e2e_synthetic_test.py), and
+[`tests/test_run_with_enrichment.py`](tests/test_run_with_enrichment.py) runs
+`meds-extract-run spec=ALOTT` over the same input with its enrichment stage against a tiny synthetic
+ontology pack, offline, and without the stage (`skip_stages`), and against an empty pack source, to
+check the soft failure, its `suMEDS-enrich` retry and `strict`.
+[`tests/test_sumeds_rules.py`](tests/test_sumeds_rules.py) checks that the rules are registered as
+`ALOTT` and match the diagnosis codes the spec writes. These check the spec's mechanics, not its
+agreement with the real release. Never commit raw ALOTT data or MEDS output derived from it.
 
 ## Citation
 

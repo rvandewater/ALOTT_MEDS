@@ -5,6 +5,10 @@
 #
 #     meds-extract-run spec=ALOTT output_dir=$MEDS_OUTPUT_DIR
 #
+# That command also enriches `metadata/codes.parquet` with suMEDS, as the `sumeds_enrich`
+# post-stage declared under `etl:` below, using `sumeds_rules.yaml`, registered with suMEDS under
+# the same name. `skip_stages=[sumeds_enrich]` leaves it out.
+#
 # Only the EMR tables (`emr-datasets/`) are extracted. The telemetry folders (alarms,
 # 2-second measurements, WFDB waveforms) are per-admission files whose subject and encounter
 # IDs live in the *file name*, not in a column, and they are several orders of magnitude
@@ -26,6 +30,18 @@
 etl:
   dataset_name: ALOTT
   n_subjects_per_shard: 10000
+  # Written to `metadata/dataset.json`, from the release's PhysioNet page. Keep the URI's version
+  # in step with `sources.dataset_version`.
+  license: PhysioNet Restricted Health Data License 1.5.0
+  description_uri: https://physionet.org/content/alott/1.0.0/
+  # `hadm_id` is the release's encounter key (`aCSN`). Every other extension column is listed under
+  # `other_extension_columns` in `dataset.json`.
+  raw_source_id_columns: [hadm_id]
+  # After the canonical stages, suMEDS adds titles and parent codes to `metadata/codes.parquet` and
+  # records the result in `dataset.json` under `sumeds_enrichment`. If it cannot (no internet, say),
+  # the ETL still succeeds, unenriched, and `suMEDS-enrich <output_dir>` finishes it later.
+  post_stages:
+    - sumeds_enrich: { rules: ALOTT }
 
 # `aMRN` is the de-identified patient key; `aCSN` is the de-identified encounter key, carried
 # as `hadm_id` wherever a table has one.
@@ -176,7 +192,7 @@ emr-datasets/flowsheet:
 emr-datasets/icu:
   # The release keeps only the ICU stay's times, not which unit it was.
   #
-  # These three codes are constants, but MEDS-Extract 0.7 attaches `_metadata` only to a code
+  # These three codes are constants, but MEDS-Extract 0.8 attaches `_metadata` only to a code
   # whose expression references a source column (mmcdermott/MEDS_extract#166), so each is
   # guarded by its own time column: `if $t == $t` is false only where `$t` is null, and such
   # a row produces no event anyway. The guard changes no event; it gives the code a component
