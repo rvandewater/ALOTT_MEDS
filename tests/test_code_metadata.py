@@ -65,3 +65,17 @@ def test_constant_codes_are_guarded_by_their_own_time_column():
         assert event["time"].startswith(f"${m.group(2)}::"), f"{table}/{name}: guard is not the time column"
         guarded += 1
     assert guarded == 3
+
+
+def test_unit_metadata_comes_from_the_dose_unit_columns():
+    """`unit` is the recorded dose unit, on exactly the two medication blocks with a numeric dose; the release
+    records no unit for flowsheets, labs or orders."""
+    with_unit = {
+        f"{table}/{name}": event["_metadata"]["_self"]["unit"]
+        for table, name, event in _events()
+        if "unit" in event.get("_metadata", {}).get("_self", {})
+    }
+    assert with_unit == {
+        "emr-datasets/medications/medication_start": "$HV_DISCRET_DOSE_UNIT",
+        "emr-datasets/medications/medication_administration": "$MAR_DOSE_UNIT",
+    }

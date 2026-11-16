@@ -173,8 +173,10 @@ emr-datasets/allergy:
           f"Recorded allergy; allergen: {$Allergy} (ALOTT allergy.Allergy)"
 
 emr-datasets/flowsheet:
-  # Provider-charted vitals, risk scores and rapid-response events. `MEAS_VALUE` is free
-  # text; `::?float64` keeps the numeric reading where there is one and null otherwise.
+  # Provider-charted vitals, risk scores and rapid-response events. The release records no unit
+  # for them (nor for lab and order results), and its documentation states none, so these codes
+  # carry no `unit` metadata. `MEAS_VALUE` is free text; `::?float64` keeps the numeric reading
+  # where there is one and null otherwise.
   # Scored scale items are charted as `<score>--><label>` (e.g. `-1-->Drowsy`), so their
   # leading score is the numeric reading. The raw string is kept in `text_value` unless it is
   # just the number (MEDS-Extract drops a `text_value` equal to `numeric_value`).
@@ -238,10 +240,14 @@ emr-datasets/medications:
     text_value: $HV_DISCRETE_DOSE
     dose_unit: $HV_DISCRET_DOSE_UNIT
     frequency: $FREQUENCY
+    # `unit` in `codes.parquet` is the ordered dose's unit as recorded, so that downstream tools read
+    # a code's unit from one place. It stays in the `dose_unit` column too. Where one drug is ordered
+    # in several units, MEDS-Extract warns and `unit` lists them all.
     _metadata:
       _self:
         description: >-
           f"Medication order start: {$MEDICATION} (ALOTT medications.MEDICATION)"
+        unit: $HV_DISCRET_DOSE_UNIT
   medication_stop:
     code: f"MEDICATION//STOP//{$MEDICATION}"
     time: '$endOffsetDate::"%Y-%m-%d %H:%M:%S" @ 23:59:59'
@@ -260,11 +266,13 @@ emr-datasets/medications:
     numeric_value: $MAR_DOSE::?float64
     dose_unit: $MAR_DOSE_UNIT
     route: $MAR_ROUTE
+    # The given dose's unit as recorded, as for `medication_start`.
     _metadata:
       _self:
         description: >-
           f"Medication administration record (MAR) entry: {$MEDICATION} (ALOTT medications.MEDICATION),
           action {$MAR_ACTION ?? 'UNK'} (medications.MAR_ACTION)"
+        unit: $MAR_DOSE_UNIT
 
 emr-datasets/labs:
   # Ordering and resulting encounters can differ; the resulting one is the visit the value

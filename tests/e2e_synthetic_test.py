@@ -277,3 +277,12 @@ def test_e2e_synthetic():
         # Descriptions the release's own display names already supplied are unchanged.
         assert described["FLOWSHEET//8"] == "Pulse"
         assert described["LAB//RESULT//101//SODIUM"] == "BASIC METABOLIC PANEL - SODIUM"
+
+        # Medication codes carry their dose's recorded unit as `unit` metadata (a list, as MEDS-Extract
+        # writes every other `_metadata` column); the codes themselves are unchanged. The release
+        # records no unit for flowsheets, labs or orders, so theirs is empty.
+        units = dict(zip(codes["code"], codes["unit"].to_list(), strict=True))
+        assert units["MEDICATION//START//FUROSEMIDE 40 MG TAB"] == ["mg"]
+        assert units["MEDICATION//MAR//FUROSEMIDE 40 MG TAB//Given"] == ["mg"]
+        assert not units["FLOWSHEET//8"]
+        assert not units["LAB//RESULT//101//SODIUM"]

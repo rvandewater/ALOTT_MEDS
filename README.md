@@ -152,6 +152,13 @@ still ships no Python, only the spec and a suMEDS rules file:
 | `HOSPITAL_ADMISSION`, `HOSPITAL_DISCHARGE`, the six demographic families, `ALLERGY`, `MEDICATION` | the code's own components, each named with the column it comes from, e.g. `Patient sex/gender: M (ALOTT demographics.Gender)`            |
 | `ICU_ADMISSION`, `ICU_DISCHARGE`, `TRANSFER`                                                      | a fixed text saying what the event marks and that the release records no unit, room or bed                                               |
 
+Medication codes also carry a `unit`: the dose unit as the release records it
+(`HV_DISCRET_DOSE_UNIT` for `MEDICATION//START`, `MAR_DOSE_UNIT` for `MEDICATION//MAR`), so that
+downstream tools read a code's unit from one place; the `dose_unit` column keeps the per-event
+value. Like every other `_metadata` column it is a list, holding several units where one drug was
+dosed in several. The release records no unit for flowsheets, labs or orders, and its
+documentation states none, so those codes have no `unit`.
+
 What each column means follows the table descriptions on the
 [ALOTT 1.0.0 PhysioNet page](https://physionet.org/content/alott/1.0.0/) and the column names
 in the authors' release code ([Carescape](https://github.com/johnclawrence/Carescape), MIT);
