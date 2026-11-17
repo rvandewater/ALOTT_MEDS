@@ -1,7 +1,7 @@
 """End-to-end run of the shipped ETL over a tiny, fully synthetic ALOTT-shaped input.
 
-This distribution ships no Python — it is `event_configs.yaml` and `sumeds_rules.yaml` plus the
-entry-point registrations that name them `ALOTT`. This test covers the ETL: that
+This distribution is `event_configs.yaml` and `sumeds_rules.yaml` plus the entry-point registrations
+that name them `ALOTT`, and one small post-stage, `collapse_unit_metadata`. This test covers the ETL: that
 `meds-extract-run spec=ALOTT` resolves that registration, runs the pipeline over raw tables laid out
 the way the spec expects, and leaves a well-formed MEDS cohort behind. Driving it through the
 registered name rather than a path is deliberate: it makes this test cover the registration too. It
@@ -108,10 +108,11 @@ def write_synthetic_input(root: Path) -> None:
             "endOffsetDate": [None, *at("00:00:00")[1:]],
             "ORDERING_MODE": ["Inpatient"] * n,
             "HV_DISCRETE_DOSE": ["40", "1-2"] * (n // 2),
-            "HV_DISCRET_DOSE_UNIT": ["mg"] * n,
+            # One order and some doses without a unit, and one drug given in two units.
+            "HV_DISCRET_DOSE_UNIT": [*["mg"] * (n - 1), None],
             "FREQUENCY": ["DAILY"] * n,
             "MAR_DOSE": ["40"] * n,
-            "MAR_DOSE_UNIT": ["mg"] * n,
+            "MAR_DOSE_UNIT": ["mg", "g", "mg", "mg", None] * (n // 5),
             "OffsetMAR_TAKEN_TIME": at("11:05:00"),
             "MAR_ACTION": ["Given", None] * (n // 2),
             "MAR_ROUTE": ["Oral"] * n,
@@ -220,7 +221,7 @@ def test_e2e_synthetic():
         assert dated.height and (dated["time"].dt.strftime("%H:%M:%S") == "23:59:59").all()
         mar = data.filter(pl.col("code").str.starts_with("MEDICATION//MAR//"))
         assert mar.height == N_SUBJECTS and (mar["time"].dt.strftime("%H:%M") == "11:05").all()
-        assert mar["code"].str.ends_with("//UNK").sum() == N_SUBJECTS // 2
+        assert (mar["code"].str.split("//").list.get(3) == "UNK").sum() == N_SUBJECTS // 2
 
         # Each code in a listed diagnosis cell is its own event.
         primary = data.filter(pl.col("diagnosis_rank") == "PRIMARY")
@@ -261,7 +262,13 @@ def test_e2e_synthetic():
         codes_tbl = pq.read_table(metadata / "codes.parquet")
         CodeMetadataSchema.validate(codes_tbl)
         codes = pl.from_arrow(codes_tbl)
-        assert set(data["code"].unique()) == set(codes["code"])
+        # The only codes without events are the stems of codes that differ only in their unit (below).
+        stems = set(codes["code"]) - set(data["code"].unique())
+        assert stems == {
+            "MEDICATION//MAR//FUROSEMIDE 40 MG TAB//Given",
+            "MEDICATION//MAR//FUROSEMIDE 40 MG TAB//UNK",
+        }
+        assert set(data["code"].unique()) <= set(codes["code"])
         undescribed = codes.filter(pl.col("description").is_null())["code"]
         assert undescribed.str.starts_with("DIAGNOSIS//").all(), undescribed.to_list()
         described = dict(zip(codes["code"], codes["description"], strict=True))
@@ -270,7 +277,7 @@ def test_e2e_synthetic():
             "Hospital admission; admission type EMERGENCY (ALOTT admission.Admission_Type), "
             "admitted from UNK (admission.Admit_Source)"
         )
-        assert described["MEDICATION//MAR//FUROSEMIDE 40 MG TAB//Given"].startswith(
+        assert described["MEDICATION//MAR//FUROSEMIDE 40 MG TAB//Given//mg"].startswith(
             "Medication administration record (MAR) entry: FUROSEMIDE 40 MG TAB"
         )
         assert described["TRANSFER"].startswith("Start of a bed stay")
@@ -278,11 +285,39 @@ def test_e2e_synthetic():
         assert described["FLOWSHEET//8"] == "Pulse"
         assert described["LAB//RESULT//101//SODIUM"] == "BASIC METABOLIC PANEL - SODIUM"
 
-        # Medication codes carry their dose's recorded unit as `unit` metadata (a list, as MEDS-Extract
-        # writes every other `_metadata` column); the codes themselves are unchanged. The release
-        # records no unit for flowsheets, labs or orders, so theirs is empty.
+        # Medication codes end in their dose's recorded unit (`UNK` where none is recorded) and carry it
+        # as `unit` metadata, one String per code: the `collapse_unit_metadata` post-stage turns the list
+        # MEDS-Extract writes into it. The release records no unit for flowsheets, labs or orders, so
+        # theirs is null.
+        assert codes.schema["unit"] == pl.String
         units = dict(zip(codes["code"], codes["unit"].to_list(), strict=True))
-        assert units["MEDICATION//START//FUROSEMIDE 40 MG TAB"] == ["mg"]
-        assert units["MEDICATION//MAR//FUROSEMIDE 40 MG TAB//Given"] == ["mg"]
-        assert not units["FLOWSHEET//8"]
-        assert not units["LAB//RESULT//101//SODIUM"]
+        drug = "FUROSEMIDE 40 MG TAB"
+        assert units[f"MEDICATION//START//{drug}//mg"] == "mg"
+        assert units[f"MEDICATION//START//{drug}//UNK"] is None
+        assert units[f"MEDICATION//MAR//{drug}//Given//mg"] == "mg"
+        assert units[f"MEDICATION//MAR//{drug}//Given//g"] == "g"
+        assert units[f"MEDICATION//MAR//{drug}//Given//UNK"] is None
+        assert units["FLOWSHEET//8"] is None
+        assert units["LAB//RESULT//101//SODIUM"] is None
+        # Codes of one drug in several units get the code without the unit as their parent, which gets a
+        # row of its own with their shared description and no unit; a code in only one unit gets none.
+        parents = dict(zip(codes["code"], codes["parent_codes"].to_list(), strict=True))
+        assert parents[f"MEDICATION//MAR//{drug}//Given//mg"] == [f"MEDICATION//MAR//{drug}//Given"]
+        assert parents[f"MEDICATION//MAR//{drug}//Given//g"] == [f"MEDICATION//MAR//{drug}//Given"]
+        assert parents[f"MEDICATION//MAR//{drug}//Given//UNK"] is None
+        assert parents[f"MEDICATION//START//{drug}//mg"] is None
+        assert units[f"MEDICATION//MAR//{drug}//Given"] is None
+        assert (
+            described[f"MEDICATION//MAR//{drug}//Given"] == described[f"MEDICATION//MAR//{drug}//Given//mg"]
+        )
+        assert f"MEDICATION//START//{drug}" not in parents
+        # Every event's own dose unit is its code's unit.
+        doses = data.filter(pl.col("dose_unit").is_not_null()).join(codes, on="code")
+        assert doses.height and (doses["dose_unit"] == doses["unit"]).all()
+        assert (
+            not data.filter(pl.col("dose_unit").is_null() & pl.col("code").str.starts_with("MEDICATION//"))[
+                "code"
+            ]
+            .is_in([c for c, u in units.items() if u is not None])
+            .any()
+        )

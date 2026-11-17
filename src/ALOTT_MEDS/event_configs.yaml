@@ -7,7 +7,8 @@
 #
 # That command also enriches `metadata/codes.parquet` with suMEDS, as the `sumeds_enrich`
 # post-stage declared under `etl:` below, using `sumeds_rules.yaml`, registered with suMEDS under
-# the same name. `skip_stages=[sumeds_enrich]` leaves it out.
+# the same name. `skip_stages=[sumeds_enrich]` leaves it out. Before it, `collapse_unit_metadata`
+# (registered by this package) makes `unit` in `codes.parquet` one String per code.
 #
 # Only the EMR tables (`emr-datasets/`) are extracted. The telemetry folders (alarms,
 # 2-second measurements, WFDB waveforms) are per-admission files whose subject and encounter
@@ -40,7 +41,13 @@ etl:
   # After the canonical stages, suMEDS adds titles and parent codes to `metadata/codes.parquet` and
   # records the result in `dataset.json` under `sumeds_enrichment`. If it cannot (no internet, say),
   # the ETL still succeeds, unenriched, and `suMEDS-enrich <output_dir>` finishes it later.
+  #
+  # First, `collapse_unit_metadata` turns `unit` from the list MEDS-Extract writes into one String per
+  # code (the run fails if a code has more than one unit) and gives codes that differ only in their
+  # unit the code without it as a parent. It runs before suMEDS so that suMEDS records the coverage of
+  # the final table and a later `suMEDS-enrich` gives the same table as enriching in the run.
   post_stages:
+    - collapse_unit_metadata
     - sumeds_enrich: { rules: ALOTT }
 
 # `aMRN` is the de-identified patient key; `aCSN` is the de-identified encounter key, carried
@@ -232,8 +239,11 @@ emr-datasets/medications:
   # datetimes in form but always 00:00:00 in the release, i.e. dates, so they are placed at
   # the end of the day like labs and orders. The ordered dose is free text (`1-2` for a
   # range); its numeric reading is kept where there is one and the raw string otherwise.
+  #
+  # One drug is ordered and given in several units, so the dose unit as recorded is the last code
+  # component (`UNK` where the release records none), and each code has one unit.
   medication_start:
-    code: f"MEDICATION//START//{$MEDICATION}"
+    code: f"MEDICATION//START//{$MEDICATION}//{$HV_DISCRET_DOSE_UNIT ?? 'UNK'}"
     time: '$startOffsetDate::"%Y-%m-%d %H:%M:%S" @ 23:59:59'
     hadm_id: $aCSN
     numeric_value: $HV_DISCRETE_DOSE::?float64
@@ -241,8 +251,7 @@ emr-datasets/medications:
     dose_unit: $HV_DISCRET_DOSE_UNIT
     frequency: $FREQUENCY
     # `unit` in `codes.parquet` is the ordered dose's unit as recorded, so that downstream tools read
-    # a code's unit from one place. It stays in the `dose_unit` column too. Where one drug is ordered
-    # in several units, MEDS-Extract warns and `unit` lists them all.
+    # a code's unit from one place. It stays in the `dose_unit` column too. It is null for `//UNK`.
     _metadata:
       _self:
         description: >-
@@ -260,13 +269,13 @@ emr-datasets/medications:
   # medication time with a time of day. The recorded action is part of the code, since a held
   # or refused dose is not a given one; a row without an action is kept as `UNK`.
   medication_administration:
-    code: f"MEDICATION//MAR//{$MEDICATION}//{$MAR_ACTION ?? 'UNK'}"
+    code: f"MEDICATION//MAR//{$MEDICATION}//{$MAR_ACTION ?? 'UNK'}//{$MAR_DOSE_UNIT ?? 'UNK'}"
     time: '$OffsetMAR_TAKEN_TIME::"%Y-%m-%d %H:%M:%S"'
     hadm_id: $aCSN
     numeric_value: $MAR_DOSE::?float64
     dose_unit: $MAR_DOSE_UNIT
     route: $MAR_ROUTE
-    # The given dose's unit as recorded, as for `medication_start`.
+    # The given dose's unit as recorded, the code's last component, as for `medication_start`.
     _metadata:
       _self:
         description: >-

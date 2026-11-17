@@ -12,7 +12,11 @@ enrichment run as one command::
 
 and the plain ETL with ``skip_stages=[sumeds_enrich]`` added.
 
-This package exists so the YAML files are addressable as package data —
-``importlib.resources.files("ALOTT_MEDS")`` — from an installed wheel. Nothing here is importable API;
-deliberately, there is nothing to import.
+The one module, ``ALOTT_MEDS.collapse_unit_metadata``, is the spec's first post-stage: it makes ``unit``
+in ``metadata/codes.parquet`` one String per code (MEDS-Extract writes it as a list) and gives codes that
+differ only in their unit the code without it as a parent. It is registered in MEDS-Transforms'
+``MEDS_transforms.stages`` entry-point group.
+
+Otherwise this package exists so the YAML files are addressable as package data —
+``importlib.resources.files("ALOTT_MEDS")`` — from an installed wheel.
 """

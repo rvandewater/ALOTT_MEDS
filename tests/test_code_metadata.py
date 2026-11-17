@@ -79,3 +79,17 @@ def test_unit_metadata_comes_from_the_dose_unit_columns():
         "emr-datasets/medications/medication_start": "$HV_DISCRET_DOSE_UNIT",
         "emr-datasets/medications/medication_administration": "$MAR_DOSE_UNIT",
     }
+
+
+def test_the_unit_is_the_last_component_of_the_codes_that_carry_one():
+    """One drug is dosed in several units, so each code with `unit` metadata ends in that same column (or
+    `UNK`), which gives every code one unit."""
+    for table, name, event in _events():
+        unit = event.get("_metadata", {}).get("_self", {}).get("unit")
+        if unit is not None:
+            assert event["code"].endswith(f"//{{{unit} ?? 'UNK'}}\""), f"{table}/{name}"
+
+
+def test_the_unit_is_collapsed_to_one_string_before_suMEDS_enriches():
+    post_stages = yaml.safe_load(CONFIG_FP.read_text())["etl"]["post_stages"]
+    assert post_stages[0] == "collapse_unit_metadata"
