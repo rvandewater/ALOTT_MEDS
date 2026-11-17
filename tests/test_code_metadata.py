@@ -81,13 +81,30 @@ def test_unit_metadata_comes_from_the_dose_unit_columns():
     }
 
 
-def test_the_unit_is_the_last_component_of_the_codes_that_carry_one():
-    """One drug is dosed in several units, so each code with `unit` metadata ends in that same column (or
-    `UNK`), which gives every code one unit."""
+def test_only_codes_flagged_by_the_pre_stage_end_in_their_unit():
+    """Each code with `unit` metadata ends in that same column (or `UNK`) only where the `alott_unit_keys`
+    side table flags it, so that a code with one unit keeps its layout and a code with several gets one per
+    unit."""
+    cfg = yaml.safe_load(CONFIG_FP.read_text())
+    table_cols = cfg["emr-datasets/medications"]["_table"]["cols"]
     for table, name, event in _events():
         unit = event.get("_metadata", {}).get("_self", {}).get("unit")
-        if unit is not None:
-            assert event["code"].endswith(f"//{{{unit} ?? 'UNK'}}\""), f"{table}/{name}"
+        if unit is None:
+            continue
+        suffix = re.search(r"\{\$(_\w+_unit)\}\"$", event["code"])
+        assert suffix, f"{table}/{name}: {event['code']}"
+        assert re.fullmatch(
+            rf"""\(f"//\{{\{unit} \?\? 'UNK'\}}" if \$\w+_unit_in_code else ""\)""",
+            table_cols[suffix.group(1)],
+        ), table_cols[suffix.group(1)]
+
+
+def test_the_pre_stage_stages_the_side_tables_the_spec_joins():
+    from ALOTT_MEDS.unit_keys import MAR_TABLE, MEDICATIONS, START_TABLE
+
+    cfg = yaml.safe_load(CONFIG_FP.read_text())
+    assert cfg["etl"]["pre_stages"] == ["alott_unit_keys"]
+    assert set(cfg[MEDICATIONS]["_table"]["joins"]) == {START_TABLE, MAR_TABLE}
 
 
 def test_the_unit_is_collapsed_to_one_string_before_suMEDS_enriches():

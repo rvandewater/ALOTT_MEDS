@@ -51,7 +51,7 @@ def test_several_units_fail_naming_the_count_and_up_to_five_codes():
     message = str(error.value)
     assert message.startswith("8 codes in codes.parquet have more than one unit")
     assert sum(f"'C{i}'" in message for i in range(9)) == 5
-    assert "Put the unit into the code" in message
+    assert "Put the unit into those codes" in message
 
 
 def test_a_string_unit_passes_through_unchanged():

@@ -8,7 +8,8 @@
 # That command also enriches `metadata/codes.parquet` with suMEDS, as the `sumeds_enrich`
 # post-stage declared under `etl:` below, using `sumeds_rules.yaml`, registered with suMEDS under
 # the same name. `skip_stages=[sumeds_enrich]` leaves it out. Before it, `alott_collapse_unit_metadata`
-# (registered by this package) makes `unit` in `codes.parquet` one String per code.
+# (registered by this package) makes `unit` in `codes.parquet` one String per code, and before the
+# extraction `alott_unit_keys` finds the medication codes that need their dose unit in the code.
 #
 # Only the EMR tables (`emr-datasets/`) are extracted. The telemetry folders (alarms,
 # 2-second measurements, WFDB waveforms) are per-admission files whose subject and encounter
@@ -38,6 +39,12 @@ etl:
   # `hadm_id` is the release's encounter key (`aCSN`). Every other extension column is listed under
   # `other_extension_columns` in `dataset.json`.
   raw_source_id_columns: [hadm_id]
+  # Before the canonical stages, `alott_unit_keys` (src/ALOTT_MEDS/unit_keys.py) stages two side
+  # tables, `alott_start_unit_in_code` and `alott_mar_unit_in_code`: the medication start and
+  # administration codes whose rows have more than one dose unit, which therefore end in the unit
+  # (see `emr-datasets/medications` below). They are written from the data on every run, so the
+  # spec names no drug.
+  #
   # After the canonical stages, suMEDS adds titles and parent codes to `metadata/codes.parquet` and
   # records the result in `dataset.json` under `sumeds_enrichment`. If it cannot (no internet, say),
   # the ETL still succeeds, unenriched, and `suMEDS-enrich <output_dir>` finishes it later.
@@ -46,6 +53,8 @@ etl:
   # code (the run fails if a code has more than one unit) and gives codes that differ only in their
   # unit the code without it as a parent. It runs before suMEDS so that suMEDS records the coverage of
   # the final table and a later `suMEDS-enrich` gives the same table as enriching in the run.
+  pre_stages:
+    - alott_unit_keys
   post_stages:
     - alott_collapse_unit_metadata
     - sumeds_enrich: { rules: ALOTT }
@@ -240,10 +249,26 @@ emr-datasets/medications:
   # the end of the day like labs and orders. The ordered dose is free text (`1-2` for a
   # range); its numeric reading is kept where there is one and the raw string otherwise.
   #
-  # One drug is ordered and given in several units, so the dose unit as recorded is the last code
-  # component (`UNK` where the release records none), and each code has one unit.
+  # A code has one unit. Most drugs are ordered (and given, per action) in one unit, but some in
+  # several: only those codes end in the dose unit as recorded (`//UNK` on their rows that record
+  # none), every other code is unchanged. Which codes these are depends on the data: the
+  # `alott_unit_keys` pre-stage stages them as side tables, joined here, whose flag is true for a
+  # code that needs its unit and null for every other one.
+  _table:
+    joins:
+      alott_start_unit_in_code:
+        key: MEDICATION
+        cols: [start_unit_in_code]
+      alott_mar_unit_in_code:
+        left_on: [MEDICATION, _mar_action]
+        right_on: [MEDICATION, mar_action]
+        cols: [mar_unit_in_code]
+    cols:
+      _mar_action: "$MAR_ACTION ?? 'UNK'"
+      _start_unit: '(f"//{$HV_DISCRET_DOSE_UNIT ?? ''UNK''}" if $start_unit_in_code else "")'
+      _mar_unit: '(f"//{$MAR_DOSE_UNIT ?? ''UNK''}" if $mar_unit_in_code else "")'
   medication_start:
-    code: f"MEDICATION//START//{$MEDICATION}//{$HV_DISCRET_DOSE_UNIT ?? 'UNK'}"
+    code: f"MEDICATION//START//{$MEDICATION}{$_start_unit}"
     time: '$startOffsetDate::"%Y-%m-%d %H:%M:%S" @ 23:59:59'
     hadm_id: $aCSN
     numeric_value: $HV_DISCRETE_DOSE::?float64
@@ -251,7 +276,8 @@ emr-datasets/medications:
     dose_unit: $HV_DISCRET_DOSE_UNIT
     frequency: $FREQUENCY
     # `unit` in `codes.parquet` is the ordered dose's unit as recorded, so that downstream tools read
-    # a code's unit from one place. It stays in the `dose_unit` column too. It is null for `//UNK`.
+    # a code's unit from one place. It stays in the `dose_unit` column too. It is null for `//UNK`
+    # and for codes whose rows record no unit.
     _metadata:
       _self:
         description: >-
@@ -269,13 +295,13 @@ emr-datasets/medications:
   # medication time with a time of day. The recorded action is part of the code, since a held
   # or refused dose is not a given one; a row without an action is kept as `UNK`.
   medication_administration:
-    code: f"MEDICATION//MAR//{$MEDICATION}//{$MAR_ACTION ?? 'UNK'}//{$MAR_DOSE_UNIT ?? 'UNK'}"
+    code: f"MEDICATION//MAR//{$MEDICATION}//{$_mar_action}{$_mar_unit}"
     time: '$OffsetMAR_TAKEN_TIME::"%Y-%m-%d %H:%M:%S"'
     hadm_id: $aCSN
     numeric_value: $MAR_DOSE::?float64
     dose_unit: $MAR_DOSE_UNIT
     route: $MAR_ROUTE
-    # The given dose's unit as recorded, the code's last component, as for `medication_start`.
+    # The given dose's unit as recorded, as for `medication_start`.
     _metadata:
       _self:
         description: >-

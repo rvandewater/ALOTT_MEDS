@@ -3,10 +3,10 @@
 MEDS-Extract writes every ``_metadata`` column as ``List(String)``, the distinct values seen for a code. A
 code has one unit, so after the ETL this stage turns ``unit`` into a nullable String: each entry is
 stripped, empty and null entries are dropped, and the distinct rest must be at most one value (none gives a
-null). A code with more than one unit is an error, not a silent choice: the code family should carry the
-unit as its last code component, as ``MEDICATION//START`` and ``MEDICATION//MAR`` do in this spec. Units
-are kept as recorded otherwise. A ``unit`` that is already a String is left as it is, and a table without
-``unit`` is not touched.
+null). A code with more than one unit is an error, not a silent choice: such a code should carry the unit
+as its last code component, as the ``MEDICATION//START`` and ``MEDICATION//MAR`` codes with several units
+do in this spec (see ``ALOTT_MEDS.unit_keys``). Units are kept as recorded otherwise. A ``unit`` that is
+already a String is left as it is, and a table without ``unit`` is not touched.
 
 It then links unit siblings: a code is unit-suffixed when its ``unit`` is set and the code ends in
 ``//<unit>``, and its stem is the code without that suffix. Where two or more unit-suffixed codes share a
@@ -57,7 +57,7 @@ class MultipleUnitsError(ValueError):
         self.codes = codes
         super().__init__(
             f"{len(codes)} codes in codes.parquet have more than one unit, e.g. {codes[:N_EXAMPLES]}. "
-            "Put the unit into the code (as its last component) for that code family, so that each code "
+            "Put the unit into those codes (as their last component), so that each code "
             "has one unit."
         )
 

@@ -23,8 +23,9 @@ This pipeline extracts the EMR tables of ALOTT (from PhysioNet,
 https://physionet.org/content/alott/) into the
 [MEDS](https://github.com/Medical-Event-Data-Standard/meds) format. It is built the same way
 as [MIMIC_IV_MEDS](https://github.com/Medical-Event-Data-Standard/MIMIC_IV_MEDS): one
-declarative [MEDS-Extract](https://github.com/mmcdermott/MEDS_extract) spec, plus one small
-post-stage that makes each code's `unit` a single String (see [Code metadata](#code-metadata)).
+declarative [MEDS-Extract](https://github.com/mmcdermott/MEDS_extract) spec, plus two small
+stages that keep each code to a single `unit` String (see [Codes](#codes) and
+[Code metadata](#code-metadata)).
 
 ## Usage:
 
@@ -121,30 +122,43 @@ second component says which: `ORDERED` or `RESULT`, `START` or `STOP`, or `MAR`
 `UNK` stands for a null component that must not drop the row (see
 [Null handling](#null-handling)).
 
-Medication codes with a numeric dose end in the dose unit as recorded (`HV_DISCRET_DOSE_UNIT`,
-`MAR_DOSE_UNIT`; `UNK` where none is recorded), because one drug is ordered and given in several
-units and a code has one unit. This changed the start and administration codes after release
-0.1.0: `MEDICATION//START//<drug>` and `MEDICATION//MAR//<drug>//<action>` are now the parents of
-their per-unit codes (see [Code metadata](#code-metadata)). `MEDICATION//STOP` codes have no dose
-and are unchanged.
+A code has one unit. Most drugs are ordered, and given per action, in one dose unit; their codes are
+`MEDICATION//START//<drug>` and `MEDICATION//MAR//<drug>//<action>`, as in release 0.1.0. Where the
+rows of such a code record more than one unit, and only there, the code ends in the dose unit as
+recorded (`HV_DISCRET_DOSE_UNIT`, `MAR_DOSE_UNIT`), one code per unit, and the code's rows that
+record no unit end in `UNK`. The code without the unit stays in `metadata/codes.parquet`, without
+events, as the parent of its per-unit codes (see [Code metadata](#code-metadata)). On the 1.0.0
+release this splits 1,266 of the 25,606 start and administration codes (826 start, 440
+administration) into 2,767 per-unit codes and 653 `UNK` codes, and leaves the other 24,340
+unchanged. Codes with one unit are not renamed, because that would break references to them for
+nothing. Which codes are split is read from the data on every run, by the pre-stage
+`alott_unit_keys` ([`src/ALOTT_MEDS/unit_keys.py`](src/ALOTT_MEDS/unit_keys.py)), so the spec names
+no drug: it stages two side tables, `alott_start_unit_in_code` and `alott_mar_unit_in_code`, that
+the medications block joins. `MEDICATION//STOP` codes have no dose and are unchanged.
 
-| Code                                             | Table        | Time                  | Value and extra columns                                                                |
-| ------------------------------------------------ | ------------ | --------------------- | -------------------------------------------------------------------------------------- |
-| `HOSPITAL_ADMISSION//<admission type>//<source>` | admission    | admission             | reason for visit in `text_value`                                                       |
-| `HOSPITAL_DISCHARGE//<destination>`              | admission    | discharge             |                                                                                        |
-| `DIAGNOSIS//ICD//10//<ICD-10-CM code>`           | admission    | discharge             | diagnosis text; `diagnosis_rank` `PRIMARY` or `SECONDARY`                              |
-| `<FIELD>//<value>`                               | demographics | static                | `FIELD` is `GENDER`, `MARITAL_STATUS`, `RACE`, `ETHNICITY`, `LANGUAGE` or `BLOOD_TYPE` |
-| `ALLERGY//<allergen>`                            | allergy      | static                | reaction in `text_value`                                                               |
-| `FLOWSHEET//<FLO_MEAS_ID>`                       | flowsheet    | recorded              | reading or score; `flow_type`                                                          |
-| `ICU_ADMISSION`, `ICU_DISCHARGE`                 | icu          | start, end            |                                                                                        |
-| `TRANSFER`                                       | location     | start                 |                                                                                        |
-| `MEDICATION//START//<drug>//<dose unit>`         | medications  | start date, 23:59:59  | ordered dose (raw text if a range); `dose_unit`, `frequency`                           |
-| `MEDICATION//STOP//<drug>`                       | medications  | end date, 23:59:59    |                                                                                        |
-| `MEDICATION//MAR//<drug>//<action>//<dose unit>` | medications  | administration        | given dose; `dose_unit`, `route`                                                       |
-| `LAB//ORDERED//<PROC_ID>`                        | labs         | order date, 23:59:59  |                                                                                        |
-| `LAB//RESULT//<PROC_ID>//<component>`            | labs         | result date, 23:59:59 | result; `order_status`                                                                 |
-| `ORDER//ORDERED//<order type>//<PROC_ID>`        | orders       | order date, 23:59:59  | `order_status`                                                                         |
-| `ORDER//RESULT//<order type>//<PROC_ID>`         | orders       | result date, 23:59:59 | result; `order_status`                                                                 |
+A split code's rows without a unit get `//UNK` rather than staying on the code without the unit:
+that code is the parent of the per-unit codes, standing for the drug in any unit, and doses of
+unknown unit would otherwise be counted under it next to the per-unit ones. `UNK` keeps them apart
+with a null `unit`, as `UNK` marks a missing component everywhere else in this ETL. A code with one
+unit keeps its rows without a unit, as in 0.1.0; its `unit` is the one its other rows record.
+
+| Code                                               | Table        | Time                  | Value and extra columns                                                                |
+| -------------------------------------------------- | ------------ | --------------------- | -------------------------------------------------------------------------------------- |
+| `HOSPITAL_ADMISSION//<admission type>//<source>`   | admission    | admission             | reason for visit in `text_value`                                                       |
+| `HOSPITAL_DISCHARGE//<destination>`                | admission    | discharge             |                                                                                        |
+| `DIAGNOSIS//ICD//10//<ICD-10-CM code>`             | admission    | discharge             | diagnosis text; `diagnosis_rank` `PRIMARY` or `SECONDARY`                              |
+| `<FIELD>//<value>`                                 | demographics | static                | `FIELD` is `GENDER`, `MARITAL_STATUS`, `RACE`, `ETHNICITY`, `LANGUAGE` or `BLOOD_TYPE` |
+| `ALLERGY//<allergen>`                              | allergy      | static                | reaction in `text_value`                                                               |
+| `FLOWSHEET//<FLO_MEAS_ID>`                         | flowsheet    | recorded              | reading or score; `flow_type`                                                          |
+| `ICU_ADMISSION`, `ICU_DISCHARGE`                   | icu          | start, end            |                                                                                        |
+| `TRANSFER`                                         | location     | start                 |                                                                                        |
+| `MEDICATION//START//<drug>[//<dose unit>]`         | medications  | start date, 23:59:59  | ordered dose (raw text if a range); `dose_unit`, `frequency`                           |
+| `MEDICATION//STOP//<drug>`                         | medications  | end date, 23:59:59    |                                                                                        |
+| `MEDICATION//MAR//<drug>//<action>[//<dose unit>]` | medications  | administration        | given dose; `dose_unit`, `route`                                                       |
+| `LAB//ORDERED//<PROC_ID>`                          | labs         | order date, 23:59:59  |                                                                                        |
+| `LAB//RESULT//<PROC_ID>//<component>`              | labs         | result date, 23:59:59 | result; `order_status`                                                                 |
+| `ORDER//ORDERED//<order type>//<PROC_ID>`          | orders       | order date, 23:59:59  | `order_status`                                                                         |
+| `ORDER//RESULT//<order type>//<PROC_ID>`           | orders       | result date, 23:59:59 | result; `order_status`                                                                 |
 
 ### Code metadata
 
@@ -161,8 +175,9 @@ from `_metadata: _self:` blocks in the spec, evaluated on the extracted rows:
 
 `unit` is a String: the unit of the code's numeric values as the release records it, one per code
 (null where there is none). MEDS does not standardise this column. Medication codes carry it from
-`HV_DISCRET_DOSE_UNIT` (`MEDICATION//START`) and `MAR_DOSE_UNIT` (`MEDICATION//MAR`), the unit that
-is also their last code component, so that downstream tools read a code's unit from one place; the
+`HV_DISCRET_DOSE_UNIT` (`MEDICATION//START`) and `MAR_DOSE_UNIT` (`MEDICATION//MAR`), which is also
+the last code component of the codes split by unit, so that downstream tools read a code's unit from
+one place; the
 `dose_unit` column keeps the per-event value. The release records no unit for flowsheets, labs or
 orders, and its documentation states none, so those codes have a null `unit`. Their descriptions
 (the release's display names) do not state units in a form that can be read off either: on the
@@ -170,14 +185,15 @@ orders, and its documentation states none, so those codes have a null `unit`. Th
 known unit, 3 of those are single letters or on codes without values, so none is taken.
 
 MEDS-Extract writes every `_metadata` column as a list, so the spec's first post-stage,
-`alott_collapse_unit_metadata` (the one Python module in this package,
-[`src/ALOTT_MEDS/collapse_unit_metadata.py`](src/ALOTT_MEDS/collapse_unit_metadata.py)), turns `unit`
+`alott_collapse_unit_metadata`
+([`src/ALOTT_MEDS/collapse_unit_metadata.py`](src/ALOTT_MEDS/collapse_unit_metadata.py)), turns `unit`
 into a String: blanks are stripped and empty entries dropped, units are otherwise kept as recorded,
 and the run fails, naming the codes, if a code still has more than one unit. It then links unit
 siblings, codes that differ only in their last component, which is their `unit` (one drug given in
 `mg` and in `g`): each gets the code without the unit (its stem) in `parent_codes`, and the stem gets
 a row of its own with the siblings' shared description (if they share one), the parents they all
-share and no `unit`. A stem has no events. `python -m ALOTT_MEDS.collapse_unit_metadata $MEDS_OUTPUT_DIR` runs the same step on an existing build.
+share and no `unit`. A stem has no events. In this ETL the siblings are exactly the codes split by
+unit (above); their `UNK` code has no `unit` and so no stem parent. `python -m ALOTT_MEDS.collapse_unit_metadata $MEDS_OUTPUT_DIR` runs the same step on an existing build.
 
 What each column means follows the table descriptions on the
 [ALOTT 1.0.0 PhysioNet page](https://physionet.org/content/alott/1.0.0/) and the column names

@@ -1,7 +1,8 @@
 """End-to-end run of the shipped ETL over a tiny, fully synthetic ALOTT-shaped input.
 
 This distribution is `event_configs.yaml` and `sumeds_rules.yaml` plus the entry-point registrations
-that name them `ALOTT`, and one small post-stage, `alott_collapse_unit_metadata`. This test covers the
+that name them `ALOTT`, and two small unit stages, `alott_unit_keys` and `alott_collapse_unit_metadata`.
+This test covers the
 ETL: that `meds-extract-run spec=ALOTT` resolves that registration, runs the pipeline over raw tables
 laid out the way the spec expects, and leaves a well-formed MEDS cohort behind. Driving it through the
 registered name rather than a path is deliberate: it makes this test cover the registration too. It
@@ -101,18 +102,20 @@ def write_synthetic_input(root: Path) -> None:
         },
         "medications": {
             **ids,
-            "MEDICATION": ["FUROSEMIDE 40 MG TAB"] * n,
+            # The second drug is ordered in two units.
+            "MEDICATION": [*["FUROSEMIDE 40 MG TAB"] * (n - 2), *["HEPARIN 5000 UNIT/ML INJ"] * 2],
             # Order start and end are datetimes in form but always midnight in the release.
             "orderingOffsetDate": at("00:00:00"),
             "startOffsetDate": at("00:00:00"),
             "endOffsetDate": [None, *at("00:00:00")[1:]],
             "ORDERING_MODE": ["Inpatient"] * n,
             "HV_DISCRETE_DOSE": ["40", "1-2"] * (n // 2),
-            # One order and some doses without a unit, and one drug given in two units.
-            "HV_DISCRET_DOSE_UNIT": [*["mg"] * (n - 1), None],
+            # One drug is ordered in one unit (one order records none), the other in two; the first is
+            # given in two units, both with and without an action, and some doses record none.
+            "HV_DISCRET_DOSE_UNIT": [*["mg"] * (n - 3), None, "units", "mL"],
             "FREQUENCY": ["DAILY"] * n,
             "MAR_DOSE": ["40"] * n,
-            "MAR_DOSE_UNIT": ["mg", "g", "mg", "mg", None] * (n // 5),
+            "MAR_DOSE_UNIT": ["mg", "g", "mg", "mg", None, "mg", "g", "mg", "units", None],
             "OffsetMAR_TAKEN_TIME": at("11:05:00"),
             "MAR_ACTION": ["Given", None] * (n // 2),
             "MAR_ROUTE": ["Oral"] * n,
@@ -265,6 +268,7 @@ def test_e2e_synthetic():
         # The only codes without events are the stems of codes that differ only in their unit (below).
         stems = set(codes["code"]) - set(data["code"].unique())
         assert stems == {
+            "MEDICATION//START//HEPARIN 5000 UNIT/ML INJ",
             "MEDICATION//MAR//FUROSEMIDE 40 MG TAB//Given",
             "MEDICATION//MAR//FUROSEMIDE 40 MG TAB//UNK",
         }
@@ -285,39 +289,57 @@ def test_e2e_synthetic():
         assert described["FLOWSHEET//8"] == "Pulse"
         assert described["LAB//RESULT//101//SODIUM"] == "BASIC METABOLIC PANEL - SODIUM"
 
-        # Medication codes end in their dose's recorded unit (`UNK` where none is recorded) and carry it
-        # as `unit` metadata, one String per code: the `alott_collapse_unit_metadata` post-stage turns the
-        # list MEDS-Extract writes into it. The release records no unit for flowsheets, labs or orders, so
-        # theirs is null.
+        # Medication codes carry their dose's recorded unit as `unit` metadata, one String per code: the
+        # `alott_collapse_unit_metadata` post-stage turns the list MEDS-Extract writes into it. Only the codes
+        # whose rows record more than one unit end in it (`UNK` on their rows that record none), as the
+        # `alott_unit_keys` pre-stage finds; every other code is as before. The release records no unit for
+        # flowsheets, labs or orders, so theirs is null.
         assert codes.schema["unit"] == pl.String
         units = dict(zip(codes["code"], codes["unit"].to_list(), strict=True))
-        drug = "FUROSEMIDE 40 MG TAB"
-        assert units[f"MEDICATION//START//{drug}//mg"] == "mg"
-        assert units[f"MEDICATION//START//{drug}//UNK"] is None
+        drug, other = "FUROSEMIDE 40 MG TAB", "HEPARIN 5000 UNIT/ML INJ"
+        assert units[f"MEDICATION//START//{drug}"] == "mg"  # one unit: unchanged, a row without one too
+        assert units[f"MEDICATION//START//{other}//units"] == "units"
+        assert units[f"MEDICATION//START//{other}//mL"] == "mL"
         assert units[f"MEDICATION//MAR//{drug}//Given//mg"] == "mg"
         assert units[f"MEDICATION//MAR//{drug}//Given//g"] == "g"
         assert units[f"MEDICATION//MAR//{drug}//Given//UNK"] is None
+        assert units[f"MEDICATION//MAR//{drug}//UNK//mg"] == "mg"
+        assert units[f"MEDICATION//MAR//{drug}//UNK//g"] == "g"
+        assert units[f"MEDICATION//MAR//{other}//Given"] == "units"
+        assert units[f"MEDICATION//MAR//{other}//UNK"] is None
         assert units["FLOWSHEET//8"] is None
         assert units["LAB//RESULT//101//SODIUM"] is None
-        # Codes of one drug in several units get the code without the unit as their parent, which gets a
-        # row of its own with their shared description and no unit; a code in only one unit gets none.
+        medication = {
+            c for c in data["code"].unique() if c.startswith(("MEDICATION//START", "MEDICATION//MAR"))
+        }
+        assert medication == {
+            f"MEDICATION//START//{drug}",
+            f"MEDICATION//START//{other}//units",
+            f"MEDICATION//START//{other}//mL",
+            f"MEDICATION//MAR//{drug}//Given//mg",
+            f"MEDICATION//MAR//{drug}//Given//g",
+            f"MEDICATION//MAR//{drug}//Given//UNK",
+            f"MEDICATION//MAR//{drug}//UNK//mg",
+            f"MEDICATION//MAR//{drug}//UNK//g",
+            f"MEDICATION//MAR//{other}//Given",
+            f"MEDICATION//MAR//{other}//UNK",
+        }
+        # Codes that differ only in their unit get the code without the unit as their parent, which gets a
+        # row of its own with their shared description and no unit; the `UNK` code (no unit) and the
+        # unchanged codes get none.
         parents = dict(zip(codes["code"], codes["parent_codes"].to_list(), strict=True))
-        assert parents[f"MEDICATION//MAR//{drug}//Given//mg"] == [f"MEDICATION//MAR//{drug}//Given"]
-        assert parents[f"MEDICATION//MAR//{drug}//Given//g"] == [f"MEDICATION//MAR//{drug}//Given"]
+        for stem, suffixes in {
+            f"MEDICATION//START//{other}": ("units", "mL"),
+            f"MEDICATION//MAR//{drug}//Given": ("mg", "g"),
+            f"MEDICATION//MAR//{drug}//UNK": ("mg", "g"),
+        }.items():
+            for suffix in suffixes:
+                assert parents[f"{stem}//{suffix}"] == [stem]
+            assert units[stem] is None and parents[stem] is None
+            assert described[stem] == described[f"{stem}//{suffixes[0]}"]
         assert parents[f"MEDICATION//MAR//{drug}//Given//UNK"] is None
-        assert parents[f"MEDICATION//START//{drug}//mg"] is None
-        assert units[f"MEDICATION//MAR//{drug}//Given"] is None
-        assert (
-            described[f"MEDICATION//MAR//{drug}//Given"] == described[f"MEDICATION//MAR//{drug}//Given//mg"]
-        )
-        assert f"MEDICATION//START//{drug}" not in parents
+        assert parents[f"MEDICATION//START//{drug}"] is None
+        assert parents[f"MEDICATION//MAR//{other}//Given"] is None
         # Every event's own dose unit is its code's unit.
         doses = data.filter(pl.col("dose_unit").is_not_null()).join(codes, on="code")
         assert doses.height and (doses["dose_unit"] == doses["unit"]).all()
-        assert (
-            not data.filter(pl.col("dose_unit").is_null() & pl.col("code").str.starts_with("MEDICATION//"))[
-                "code"
-            ]
-            .is_in([c for c, u in units.items() if u is not None])
-            .any()
-        )
