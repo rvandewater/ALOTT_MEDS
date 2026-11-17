@@ -1,4 +1,4 @@
-"""The `collapse_unit_metadata` post-stage on small synthetic `codes.parquet` tables."""
+"""The `alott_collapse_unit_metadata` post-stage on small synthetic `codes.parquet` tables."""
 
 from pathlib import Path
 

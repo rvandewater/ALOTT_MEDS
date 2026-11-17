@@ -1,4 +1,4 @@
-"""The ``collapse_unit_metadata`` post-stage: one ``unit`` String per code in ``metadata/codes.parquet``.
+"""The ``alott_collapse_unit_metadata`` stage: one ``unit`` String per code in ``metadata/codes.parquet``.
 
 MEDS-Extract writes every ``_metadata`` column as ``List(String)``, the distinct values seen for a code. A
 code has one unit, so after the ETL this stage turns ``unit`` into a nullable String: each entry is
@@ -19,7 +19,7 @@ a later ``suMEDS-enrich`` gives the same result as the run's own enrichment::
 
     etl:
       post_stages:
-        - collapse_unit_metadata
+        - alott_collapse_unit_metadata
         - sumeds_enrich: { rules: ALOTT }
 
 It is registered in MEDS-Transforms' ``MEDS_transforms.stages`` entry-point group (see ``pyproject.toml``),
@@ -39,7 +39,7 @@ import pyarrow.parquet as pq
 
 logger = logging.getLogger(__name__)
 
-STAGE_NAME = "collapse_unit_metadata"
+STAGE_NAME = "alott_collapse_unit_metadata"
 UNIT = "unit"
 PARENTS = "parent_codes"
 #: How many codes with several units the error names.

@@ -170,7 +170,7 @@ orders, and its documentation states none, so those codes have a null `unit`. Th
 known unit, 3 of those are single letters or on codes without values, so none is taken.
 
 MEDS-Extract writes every `_metadata` column as a list, so the spec's first post-stage,
-`collapse_unit_metadata` (the one Python module in this package,
+`alott_collapse_unit_metadata` (the one Python module in this package,
 [`src/ALOTT_MEDS/collapse_unit_metadata.py`](src/ALOTT_MEDS/collapse_unit_metadata.py)), turns `unit`
 into a String: blanks are stripped and empty entries dropped, units are otherwise kept as recorded,
 and the run fails, naming the codes, if a code still has more than one unit. It then links unit
@@ -227,13 +227,13 @@ than in every ETL. This package ships the rules for it,
 [`src/ALOTT_MEDS/sumeds_rules.yaml`](src/ALOTT_MEDS/sumeds_rules.yaml), registered in suMEDS's
 `sumeds.rules` entry-point group under the same name as the MEDS-Extract spec, `ALOTT`, so
 `--rules ALOTT` works for any suMEDS command. The spec runs them as its last stage, after
-`collapse_unit_metadata`, so that suMEDS sees the final table (and a later `suMEDS-enrich` gives the
+`alott_collapse_unit_metadata`, so that suMEDS sees the final table (and a later `suMEDS-enrich` gives the
 same result):
 
 ```yaml
 etl:
   post_stages:
-    - collapse_unit_metadata
+    - alott_collapse_unit_metadata
     - sumeds_enrich: {rules: ALOTT}
 ```
 

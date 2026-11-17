@@ -92,4 +92,4 @@ def test_the_unit_is_the_last_component_of_the_codes_that_carry_one():
 
 def test_the_unit_is_collapsed_to_one_string_before_suMEDS_enriches():
     post_stages = yaml.safe_load(CONFIG_FP.read_text())["etl"]["post_stages"]
-    assert post_stages[0] == "collapse_unit_metadata"
+    assert post_stages[0] == "alott_collapse_unit_metadata"

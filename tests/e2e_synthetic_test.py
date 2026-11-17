@@ -1,9 +1,9 @@
 """End-to-end run of the shipped ETL over a tiny, fully synthetic ALOTT-shaped input.
 
 This distribution is `event_configs.yaml` and `sumeds_rules.yaml` plus the entry-point registrations
-that name them `ALOTT`, and one small post-stage, `collapse_unit_metadata`. This test covers the ETL: that
-`meds-extract-run spec=ALOTT` resolves that registration, runs the pipeline over raw tables laid out
-the way the spec expects, and leaves a well-formed MEDS cohort behind. Driving it through the
+that name them `ALOTT`, and one small post-stage, `alott_collapse_unit_metadata`. This test covers the
+ETL: that `meds-extract-run spec=ALOTT` resolves that registration, runs the pipeline over raw tables
+laid out the way the spec expects, and leaves a well-formed MEDS cohort behind. Driving it through the
 registered name rather than a path is deliberate: it makes this test cover the registration too. It
 leaves out the spec's suMEDS enrichment stage (`skip_stages=[sumeds_enrich]`), which would otherwise
 fetch ontology packs; `test_run_with_enrichment.py` runs it over the same input, offline.
@@ -286,8 +286,8 @@ def test_e2e_synthetic():
         assert described["LAB//RESULT//101//SODIUM"] == "BASIC METABOLIC PANEL - SODIUM"
 
         # Medication codes end in their dose's recorded unit (`UNK` where none is recorded) and carry it
-        # as `unit` metadata, one String per code: the `collapse_unit_metadata` post-stage turns the list
-        # MEDS-Extract writes into it. The release records no unit for flowsheets, labs or orders, so
+        # as `unit` metadata, one String per code: the `alott_collapse_unit_metadata` post-stage turns the
+        # list MEDS-Extract writes into it. The release records no unit for flowsheets, labs or orders, so
         # theirs is null.
         assert codes.schema["unit"] == pl.String
         units = dict(zip(codes["code"], codes["unit"].to_list(), strict=True))
