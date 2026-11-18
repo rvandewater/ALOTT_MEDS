@@ -1,14 +1,12 @@
-"""The ``alott_collapse_unit_metadata`` stage: one ``unit`` String per code in ``metadata/codes.parquet``.
+"""The ``alott_unit_metadata`` stage: links unit siblings in ``metadata/codes.parquet``.
 
-MEDS-Extract writes every ``_metadata`` column as ``List(String)``, the distinct values seen for a code. A
-code has one unit, so after the ETL this stage turns ``unit`` into a nullable String: each entry is
-stripped, empty and null entries are dropped, and the distinct rest must be at most one value (none gives a
-null). A code with more than one unit is an error, not a silent choice: such a code should carry the unit
-as its last code component, as the ``MEDICATION//START`` and ``MEDICATION//MAR`` codes with several units
-do in this spec (see ``ALOTT_MEDS.unit_keys``). Units are kept as recorded otherwise. A ``unit`` that is
-already a String is left as it is, and a table without ``unit`` is not touched.
+MEDS-Extract (0.9 and later) writes ``unit`` as one nullable String per code: each value stripped, blanks
+dropped, and a code with more than one distinct unit an error. Such a code should carry the unit as its
+last code component, as the ``MEDICATION//START`` and ``MEDICATION//MAR`` codes with several units do in
+this spec (see ``ALOTT_MEDS.unit_keys``). This stage no longer collapses ``unit``; a table without
+``unit`` is not touched.
 
-It then links unit siblings: a code is unit-suffixed when its ``unit`` is set and the code ends in
+It links unit siblings: a code is unit-suffixed when its ``unit`` is set and the code ends in
 ``//<unit>``, and its stem is the code without that suffix. Where two or more unit-suffixed codes share a
 stem (one drug ordered in ``mg`` and in ``g``, say), each gets the stem as an in-dataset parent in
 ``parent_codes``, after any parents it already has, and a stem without a row of its own gets one: the
@@ -19,11 +17,11 @@ a later ``suMEDS-enrich`` gives the same result as the run's own enrichment::
 
     etl:
       post_stages:
-        - alott_collapse_unit_metadata
+        - alott_unit_metadata
         - sumeds_enrich: { rules: ALOTT }
 
 It is registered in MEDS-Transforms' ``MEDS_transforms.stages`` entry-point group (see ``pyproject.toml``),
-and ``python -m ALOTT_MEDS.collapse_unit_metadata OUTPUT_DIR`` runs it on an existing build.
+and ``python -m ALOTT_MEDS.unit_metadata OUTPUT_DIR`` runs it on an existing build.
 """
 
 from __future__ import annotations
@@ -39,72 +37,9 @@ import pyarrow.parquet as pq
 
 logger = logging.getLogger(__name__)
 
-STAGE_NAME = "alott_collapse_unit_metadata"
+STAGE_NAME = "alott_unit_metadata"
 UNIT = "unit"
 PARENTS = "parent_codes"
-#: How many codes with several units the error names.
-N_EXAMPLES = 5
-
-
-class MultipleUnitsError(ValueError):
-    """Some codes in ``codes.parquet`` have more than one unit.
-
-    Attributes:
-        codes: Every code with more than one unit.
-    """
-
-    def __init__(self, codes: list[str]):
-        self.codes = codes
-        super().__init__(
-            f"{len(codes)} codes in codes.parquet have more than one unit, e.g. {codes[:N_EXAMPLES]}. "
-            "Put the unit into those codes (as their last component), so that each code "
-            "has one unit."
-        )
-
-
-def collapse_unit_metadata(codes: pl.DataFrame) -> pl.DataFrame:
-    """Return ``codes`` with its ``unit`` column as one nullable String per code.
-
-    Args:
-        codes: A ``codes.parquet`` table. ``unit``, if present, is a List of Strings or a String.
-
-    Returns:
-        The same table, with ``unit`` in the same place. A List ``unit`` becomes its single distinct
-        non-blank (stripped) value, or null if it has none.
-
-    Raises:
-        MultipleUnitsError: If a code has more than one distinct unit.
-        TypeError: If ``unit`` is neither a String nor a List.
-
-    Examples:
-        >>> codes = pl.DataFrame({"code": ["A", "B", "C"], "unit": [["mg", " mg"], [None, ""], None]})
-        >>> collapse_unit_metadata(codes)["unit"].to_list()
-        ['mg', None, None]
-        >>> collapse_unit_metadata(pl.DataFrame({"code": ["A"], "unit": [["mg", "g"]]}))
-        Traceback (most recent call last):
-            ...
-        ALOTT_MEDS.collapse_unit_metadata.MultipleUnitsError: 1 codes in codes.parquet have more than one...
-    """
-    if UNIT not in codes.columns:
-        return codes
-    dtype = codes.schema[UNIT]
-    if dtype == pl.String:
-        return codes
-    if dtype == pl.Null:
-        return codes.with_columns(pl.col(UNIT).cast(pl.String))
-    if not isinstance(dtype, pl.List):
-        raise TypeError(f"codes.parquet `{UNIT}` is {dtype}, expected a List of Strings or a String.")
-
-    distinct = (
-        pl.col(UNIT)
-        .cast(pl.List(pl.String))
-        .list.eval(pl.element().str.strip_chars().filter(pl.element().str.strip_chars() != "").unique())
-    )
-    codes = codes.with_columns(distinct)
-    several = codes.filter(pl.col(UNIT).list.len() > 1)["code"].sort().to_list()
-    if several:
-        raise MultipleUnitsError(several)
-    return codes.with_columns(pl.col(UNIT).list.first())
 
 
 def _sibling_stems(codes: pl.DataFrame) -> pl.Series | None:
@@ -222,19 +157,19 @@ def link_unit_siblings(codes: pl.DataFrame) -> pl.DataFrame:
     return out.sort("code") if codes["code"].is_sorted() else out
 
 
-def collapse_unit_metadata_file(codes_in: Path, codes_out: Path | None = None) -> None:
-    """Collapse ``unit`` in the ``codes.parquet`` at ``codes_in`` and link its unit siblings (parents and stem
-    rows), writing to ``codes_out`` (default: in place).
+def unit_metadata_file(codes_in: Path, codes_out: Path | None = None) -> None:
+    """Link the unit siblings in the ``codes.parquet`` at ``codes_in`` (parents and stem rows), writing to
+    ``codes_out`` (default: in place). ``unit`` is written as an Arrow ``string``.
 
     A table that needs no change is not rewritten in place.
     """
     codes_out = codes_in if codes_out is None else codes_out
     table = pq.read_table(codes_in)
     codes = pl.from_arrow(table)
-    linked = add_unit_sibling_parents(collapse_unit_metadata(codes))
+    linked = add_unit_sibling_parents(codes)
     stems = unit_sibling_stem_rows(linked)
     if codes_out == codes_in and stems.is_empty() and linked.equals(codes) and linked.schema == codes.schema:
-        logger.info(f"{codes_in}: `{UNIT}` and unit siblings need no change.")
+        logger.info(f"{codes_in}: unit siblings need no change.")
         return
     # Only `unit` and `parent_codes` are replaced, and the stem rows appended; every other column keeps
     # its Arrow type as written (a polars round trip would widen `string` to `large_string`, which the MEDS
@@ -269,21 +204,19 @@ def collapse_unit_metadata_file(codes_in: Path, codes_out: Path | None = None) -
     codes_out.parent.mkdir(parents=True, exist_ok=True)
     pq.write_table(table, codes_out)
     if UNIT in linked.columns:
-        logger.info(f"{codes_out}: `{UNIT}` is one String per code ({linked[UNIT].count()} codes have one).")
+        logger.info(f"{codes_out}: {linked[UNIT].count()} codes have a `{UNIT}`.")
 
 
 def _main(cfg: Any) -> None:
-    """Collapse ``unit`` in the finished cohort's ``metadata/codes.parquet`` (a post-stage reads and writes
-    ``metadata/`` in place)."""
+    """Link the unit siblings in the finished cohort's ``metadata/codes.parquet`` (a post-stage reads and
+    writes ``metadata/`` in place)."""
     if getattr(cfg, "worker", 0) != 0:
         return
     import meds
 
     name = Path(meds.code_metadata_filepath).name
     stage_cfg = cfg.stage_cfg
-    collapse_unit_metadata_file(
-        Path(stage_cfg.metadata_input_dir) / name, Path(stage_cfg.reducer_output_dir) / name
-    )
+    unit_metadata_file(Path(stage_cfg.metadata_input_dir) / name, Path(stage_cfg.reducer_output_dir) / name)
 
 
 try:
@@ -302,4 +235,4 @@ if __name__ == "__main__":  # pragma: no cover - exercised by hand on an existin
     if len(sys.argv) != 2:
         sys.exit(f"usage: python -m {__spec__.name} MEDS_ROOT")
     logging.basicConfig(level=logging.INFO)
-    collapse_unit_metadata_file(Path(sys.argv[1]) / meds.code_metadata_filepath)
+    unit_metadata_file(Path(sys.argv[1]) / meds.code_metadata_filepath)

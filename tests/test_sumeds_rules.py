@@ -85,7 +85,7 @@ def test_spec_enriches_with_these_rules():
     """`meds-extract-run spec=ALOTT` ends with suMEDS's enrichment stage, using these rules, after the stage
     that makes `unit` one String per code."""
     etl = yaml.safe_load(CONFIG_FP.read_text())["etl"]
-    assert etl["post_stages"] == ["alott_collapse_unit_metadata", {"sumeds_enrich": {"rules": "ALOTT"}}]
+    assert etl["post_stages"] == ["alott_unit_metadata", {"sumeds_enrich": {"rules": "ALOTT"}}]
 
 
 def test_rules_load_in_sumeds():

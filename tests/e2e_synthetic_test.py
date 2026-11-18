@@ -1,7 +1,7 @@
 """End-to-end run of the shipped ETL over a tiny, fully synthetic ALOTT-shaped input.
 
 This distribution is `event_configs.yaml` and `sumeds_rules.yaml` plus the entry-point registrations
-that name them `ALOTT`, and two small unit stages, `alott_unit_keys` and `alott_collapse_unit_metadata`.
+that name them `ALOTT`, and two small unit stages, `alott_unit_keys` and `alott_unit_metadata`.
 This test covers the
 ETL: that `meds-extract-run spec=ALOTT` resolves that registration, runs the pipeline over raw tables
 laid out the way the spec expects, and leaves a well-formed MEDS cohort behind. Driving it through the
@@ -289,11 +289,10 @@ def test_e2e_synthetic():
         assert described["FLOWSHEET//8"] == "Pulse"
         assert described["LAB//RESULT//101//SODIUM"] == "BASIC METABOLIC PANEL - SODIUM"
 
-        # Medication codes carry their dose's recorded unit as `unit` metadata, one String per code: the
-        # `alott_collapse_unit_metadata` post-stage turns the list MEDS-Extract writes into it. Only the codes
-        # whose rows record more than one unit end in it (`UNK` on their rows that record none), as the
-        # `alott_unit_keys` pre-stage finds; every other code is as before. The release records no unit for
-        # flowsheets, labs or orders, so theirs is null.
+        # Medication codes carry their dose's recorded unit as `unit` metadata, one String per code, as
+        # MEDS-Extract writes it. Only the codes whose rows record more than one unit end in it (`UNK` on
+        # their rows that record none), as the `alott_unit_keys` pre-stage finds; every other code is as
+        # before. The release records no unit for flowsheets, labs or orders, so theirs is null.
         assert codes.schema["unit"] == pl.String
         units = dict(zip(codes["code"], codes["unit"].to_list(), strict=True))
         drug, other = "FUROSEMIDE 40 MG TAB", "HEPARIN 5000 UNIT/ML INJ"

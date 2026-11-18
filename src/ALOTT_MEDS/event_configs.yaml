@@ -7,9 +7,9 @@
 #
 # That command also enriches `metadata/codes.parquet` with suMEDS, as the `sumeds_enrich`
 # post-stage declared under `etl:` below, using `sumeds_rules.yaml`, registered with suMEDS under
-# the same name. `skip_stages=[sumeds_enrich]` leaves it out. Before it, `alott_collapse_unit_metadata`
-# (registered by this package) makes `unit` in `codes.parquet` one String per code, and before the
-# extraction `alott_unit_keys` finds the medication codes that need their dose unit in the code.
+# the same name. `skip_stages=[sumeds_enrich]` leaves it out. Before it, `alott_unit_metadata`
+# (registered by this package) links codes in `codes.parquet` that differ only in their unit, and
+# before the extraction `alott_unit_keys` finds the medication codes that need their dose unit in the code.
 #
 # Only the EMR tables (`emr-datasets/`) are extracted. The telemetry folders (alarms,
 # 2-second measurements, WFDB waveforms) are per-admission files whose subject and encounter
@@ -49,14 +49,14 @@ etl:
   # records the result in `dataset.json` under `sumeds_enrichment`. If it cannot (no internet, say),
   # the ETL still succeeds, unenriched, and `suMEDS-enrich <output_dir>` finishes it later.
   #
-  # First, `alott_collapse_unit_metadata` turns `unit` from the list MEDS-Extract writes into one String per
-  # code (the run fails if a code has more than one unit) and gives codes that differ only in their
-  # unit the code without it as a parent. It runs before suMEDS so that suMEDS records the coverage of
+  # First, `alott_unit_metadata` gives codes that differ only in their unit the code without it as a
+  # parent. (MEDS-Extract writes `unit` as one String per code and fails the run if a code has more
+  # than one unit.) It runs before suMEDS so that suMEDS records the coverage of
   # the final table and a later `suMEDS-enrich` gives the same table as enriching in the run.
   pre_stages:
     - alott_unit_keys
   post_stages:
-    - alott_collapse_unit_metadata
+    - alott_unit_metadata
     - sumeds_enrich: { rules: ALOTT }
 
 # `aMRN` is the de-identified patient key; `aCSN` is the de-identified encounter key, carried

@@ -1,93 +1,45 @@
-"""The `alott_collapse_unit_metadata` post-stage on small synthetic `codes.parquet` tables."""
+"""The `alott_unit_metadata` post-stage on small synthetic `codes.parquet` tables."""
 
 from pathlib import Path
 
 import polars as pl
-import pytest
 
-from ALOTT_MEDS.collapse_unit_metadata import (
-    MultipleUnitsError,
+from ALOTT_MEDS.unit_metadata import (
     add_unit_sibling_parents,
-    collapse_unit_metadata,
-    collapse_unit_metadata_file,
     link_unit_siblings,
+    unit_metadata_file,
     unit_sibling_stem_rows,
 )
 
-LIST_OF_STRINGS = pl.List(pl.String)
 
-
-def _codes(units: list, dtype: pl.DataType = LIST_OF_STRINGS) -> pl.DataFrame:
+def _codes(units: list) -> pl.DataFrame:
     return pl.DataFrame(
         {
             "code": [f"C{i}" for i in range(len(units))],
-            "unit": pl.Series(units, dtype=dtype),
+            "unit": pl.Series(units, dtype=pl.String),
             "description": [f"code {i}" for i in range(len(units))],
         }
     )
 
 
-def test_a_list_becomes_its_one_distinct_non_blank_value():
-    codes = _codes([["mg"], ["mg", "mg"], [" mg ", "mg"], ["", "  ", None, "mL"], [None], [], None])
-    out = collapse_unit_metadata(codes)
-    assert out.schema["unit"] == pl.String
-    assert out["unit"].to_list() == ["mg", "mg", "mg", "mL", None, None, None]
-    # Column order and the other columns are kept.
-    assert out.columns == codes.columns
-    assert out["description"].equals(codes["description"])
-
-
-def test_units_are_kept_as_recorded():
-    """Only the surrounding blanks go; case, spelling and placeholder units stay."""
-    out = collapse_unit_metadata(_codes([["MG"], ["Geen"], ["None"], ["mg/kg/hr"]]))
-    assert out["unit"].to_list() == ["MG", "Geen", "None", "mg/kg/hr"]
-
-
-def test_several_units_fail_naming_the_count_and_up_to_five_codes():
-    units = [["mg"], *([["mg", "g"]] * 7), [" mL", "mg"]]
-    with pytest.raises(MultipleUnitsError) as error:
-        collapse_unit_metadata(_codes(units))
-    assert len(error.value.codes) == 8
-    message = str(error.value)
-    assert message.startswith("8 codes in codes.parquet have more than one unit")
-    assert sum(f"'C{i}'" in message for i in range(9)) == 5
-    assert "Put the unit into those codes" in message
-
-
-def test_a_string_unit_passes_through_unchanged():
-    codes = _codes(["mg", None, " mL "], dtype=pl.String)
-    assert collapse_unit_metadata(codes) is codes
-    once = collapse_unit_metadata(_codes([["mg"], ["mL"]]))
-    assert collapse_unit_metadata(once).equals(once)
-
-
-def test_no_unit_column_is_a_no_op():
-    codes = pl.DataFrame({"code": ["A"], "description": ["a"]})
-    assert collapse_unit_metadata(codes) is codes
-
-
-def test_an_all_null_unit_becomes_a_null_string():
-    out = collapse_unit_metadata(_codes([None, None], dtype=pl.Null))
-    assert out.schema["unit"] == pl.String
-
-
-def test_a_unit_of_another_type_is_refused():
-    with pytest.raises(TypeError):
-        collapse_unit_metadata(_codes([1, 2], dtype=pl.Int64))
-
-
 def test_the_file_is_rewritten_in_place_only_when_it_changes(tmp_path: Path):
     fp = tmp_path / "codes.parquet"
-    _codes([["mg"], [None]]).write_parquet(fp)
-    collapse_unit_metadata_file(fp)
-    assert pl.read_parquet(fp)["unit"].to_list() == ["mg", None]
+    _codes(["mg", None]).write_parquet(fp)
     before = fp.read_bytes()
-    collapse_unit_metadata_file(fp)
+    unit_metadata_file(fp)
     assert fp.read_bytes() == before
 
     out = tmp_path / "out" / "codes.parquet"
-    collapse_unit_metadata_file(fp, out)
+    unit_metadata_file(fp, out)
     assert pl.read_parquet(out).equals(pl.read_parquet(fp))
+
+
+def test_no_unit_column_is_a_no_op(tmp_path: Path):
+    fp = tmp_path / "codes.parquet"
+    codes = pl.DataFrame({"code": ["A//mg", "A//g"], "description": ["a", "a"]})
+    codes.write_parquet(fp)
+    unit_metadata_file(fp)
+    assert pl.read_parquet(fp).equals(codes)
 
 
 def _parents(codes: pl.DataFrame) -> dict:
@@ -130,11 +82,6 @@ def test_parent_codes_is_created_only_when_there_are_siblings():
     out = add_unit_sibling_parents(pl.DataFrame({"code": ["X//mg", "X//g", "Y"], "unit": ["mg", "g", None]}))
     assert out.schema["parent_codes"] == pl.List(pl.String)
     assert _parents(out) == {"X//mg": ["X"], "X//g": ["X"], "Y": None}
-
-
-def test_a_list_unit_is_left_to_the_collapse():
-    codes = _codes([["mg"], ["g"]])
-    assert add_unit_sibling_parents(codes) is codes
 
 
 def test_a_stem_row_gets_the_shared_description_and_shared_parents():
@@ -180,17 +127,17 @@ def test_an_existing_stem_row_is_left_unchanged():
     assert out.row(0) == ("D//A", "the drug", None, None)
 
 
-def test_the_file_step_collapses_then_links_siblings(tmp_path: Path):
+def test_the_file_step_links_siblings(tmp_path: Path):
     fp = tmp_path / "codes.parquet"
     pl.DataFrame(
-        {"code": ["X//g", "X//mg", "Y"], "description": ["x", "x", "y"], "unit": [["g", "g"], ["mg"], None]}
+        {"code": ["X//g", "X//mg", "Y"], "description": ["x", "x", "y"], "unit": ["g", "mg", None]}
     ).write_parquet(fp)
-    collapse_unit_metadata_file(fp)
+    unit_metadata_file(fp)
     out = pl.read_parquet(fp)
     assert out["code"].to_list() == ["X", "X//g", "X//mg", "Y"]
     assert out["unit"].to_list() == [None, "g", "mg", None]
     assert out["description"].to_list() == ["x", "x", "x", "y"]
     assert _parents(out) == {"X": None, "X//g": ["X"], "X//mg": ["X"], "Y": None}
     before = fp.read_bytes()
-    collapse_unit_metadata_file(fp)
+    unit_metadata_file(fp)
     assert fp.read_bytes() == before

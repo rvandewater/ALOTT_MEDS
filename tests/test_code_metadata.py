@@ -107,6 +107,6 @@ def test_the_pre_stage_stages_the_side_tables_the_spec_joins():
     assert set(cfg[MEDICATIONS]["_table"]["joins"]) == {START_TABLE, MAR_TABLE}
 
 
-def test_the_unit_is_collapsed_to_one_string_before_suMEDS_enriches():
+def test_unit_siblings_are_linked_before_suMEDS_enriches():
     post_stages = yaml.safe_load(CONFIG_FP.read_text())["etl"]["post_stages"]
-    assert post_stages[0] == "alott_collapse_unit_metadata"
+    assert post_stages[0] == "alott_unit_metadata"

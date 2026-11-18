@@ -16,8 +16,8 @@ Which codes those are depends on the data, so this stage writes them as two side
   ``mar_unit_in_code`` true.
 
 The rows compared are the ones that become events (a drug and the event's time are present), because
-``unit`` in ``codes.parquet`` is read off the events. Units are compared as the
-``alott_collapse_unit_metadata`` post-stage compares them: stripped, blanks and nulls left out. No drug is
+``unit`` in ``codes.parquet`` is read off the events. Units are compared as MEDS-Extract compares them
+when it writes a code's one unit: stripped, blanks and nulls left out. No drug is
 named in the spec: the tables are written from the data on every run.
 """
 

@@ -184,16 +184,15 @@ orders, and its documentation states none, so those codes have a null `unit`. Th
 1.0.0 release, 5 of the 9,356 flowsheet, lab and order codes end in a bracketed token that is a
 known unit, 3 of those are single letters or on codes without values, so none is taken.
 
-MEDS-Extract writes every `_metadata` column as a list, so the spec's first post-stage,
-`alott_collapse_unit_metadata`
-([`src/ALOTT_MEDS/collapse_unit_metadata.py`](src/ALOTT_MEDS/collapse_unit_metadata.py)), turns `unit`
-into a String: blanks are stripped and empty entries dropped, units are otherwise kept as recorded,
-and the run fails, naming the codes, if a code still has more than one unit. It then links unit
+MEDS-Extract (0.9 and later) writes `unit` as one String per code: blanks are stripped and empty
+entries dropped, units are otherwise kept as recorded, and the run fails, naming the codes, if a code
+has more than one unit. The spec's first post-stage, `alott_unit_metadata`
+([`src/ALOTT_MEDS/unit_metadata.py`](src/ALOTT_MEDS/unit_metadata.py)), then links unit
 siblings, codes that differ only in their last component, which is their `unit` (one drug given in
 `mg` and in `g`): each gets the code without the unit (its stem) in `parent_codes`, and the stem gets
 a row of its own with the siblings' shared description (if they share one), the parents they all
 share and no `unit`. A stem has no events. In this ETL the siblings are exactly the codes split by
-unit (above); their `UNK` code has no `unit` and so no stem parent. `python -m ALOTT_MEDS.collapse_unit_metadata $MEDS_OUTPUT_DIR` runs the same step on an existing build.
+unit (above); their `UNK` code has no `unit` and so no stem parent. `python -m ALOTT_MEDS.unit_metadata $MEDS_OUTPUT_DIR` runs the same step on an existing build.
 
 What each column means follows the table descriptions on the
 [ALOTT 1.0.0 PhysioNet page](https://physionet.org/content/alott/1.0.0/) and the column names
@@ -243,13 +242,13 @@ than in every ETL. This package ships the rules for it,
 [`src/ALOTT_MEDS/sumeds_rules.yaml`](src/ALOTT_MEDS/sumeds_rules.yaml), registered in suMEDS's
 `sumeds.rules` entry-point group under the same name as the MEDS-Extract spec, `ALOTT`, so
 `--rules ALOTT` works for any suMEDS command. The spec runs them as its last stage, after
-`alott_collapse_unit_metadata`, so that suMEDS sees the final table (and a later `suMEDS-enrich` gives the
+`alott_unit_metadata`, so that suMEDS sees the final table (and a later `suMEDS-enrich` gives the
 same result):
 
 ```yaml
 etl:
   post_stages:
-    - alott_collapse_unit_metadata
+    - alott_unit_metadata
     - sumeds_enrich: {rules: ALOTT}
 ```
 
