@@ -293,18 +293,23 @@ def test_e2e_synthetic():
         # MEDS-Extract writes it. Only the codes whose rows record more than one unit end in it (`UNK` on
         # their rows that record none), as the `alott_unit_keys` pre-stage finds; every other code is as
         # before. The release records no unit for flowsheets, labs or orders, so theirs is null.
+        # suMEDS's `sumeds_normalize_units` then writes `unit` in UCUM (`units` -> `{units}`) and keeps the
+        # spelling as recorded in `unit_source_value`; the code keeps its name.
         assert codes.schema["unit"] == pl.String
         units = dict(zip(codes["code"], codes["unit"].to_list(), strict=True))
+        recorded = dict(zip(codes["code"], codes["unit_source_value"].to_list(), strict=True))
         drug, other = "FUROSEMIDE 40 MG TAB", "HEPARIN 5000 UNIT/ML INJ"
         assert units[f"MEDICATION//START//{drug}"] == "mg"  # one unit: unchanged, a row without one too
-        assert units[f"MEDICATION//START//{other}//units"] == "units"
+        assert units[f"MEDICATION//START//{other}//units"] == "{units}"
+        assert recorded[f"MEDICATION//START//{other}//units"] == "units"
         assert units[f"MEDICATION//START//{other}//mL"] == "mL"
         assert units[f"MEDICATION//MAR//{drug}//Given//mg"] == "mg"
         assert units[f"MEDICATION//MAR//{drug}//Given//g"] == "g"
         assert units[f"MEDICATION//MAR//{drug}//Given//UNK"] is None
         assert units[f"MEDICATION//MAR//{drug}//UNK//mg"] == "mg"
         assert units[f"MEDICATION//MAR//{drug}//UNK//g"] == "g"
-        assert units[f"MEDICATION//MAR//{other}//Given"] == "units"
+        assert units[f"MEDICATION//MAR//{other}//Given"] == "{units}"
+        assert recorded[f"MEDICATION//MAR//{other}//Given"] == "units"
         assert units[f"MEDICATION//MAR//{other}//UNK"] is None
         assert units["FLOWSHEET//8"] is None
         assert units["LAB//RESULT//101//SODIUM"] is None
@@ -339,6 +344,6 @@ def test_e2e_synthetic():
         assert parents[f"MEDICATION//MAR//{drug}//Given//UNK"] is None
         assert parents[f"MEDICATION//START//{drug}"] is None
         assert parents[f"MEDICATION//MAR//{other}//Given"] is None
-        # Every event's own dose unit is its code's unit.
+        # Every event's own dose unit is its code's unit as recorded.
         doses = data.filter(pl.col("dose_unit").is_not_null()).join(codes, on="code")
-        assert doses.height and (doses["dose_unit"] == doses["unit"]).all()
+        assert doses.height and (doses["dose_unit"] == doses["unit_source_value"]).all()

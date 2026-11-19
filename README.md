@@ -173,12 +173,15 @@ from `_metadata: _self:` blocks in the spec, evaluated on the extracted rows:
 | `HOSPITAL_ADMISSION`, `HOSPITAL_DISCHARGE`, the six demographic families, `ALLERGY`, `MEDICATION` | the code's own components, each named with the column it comes from, e.g. `Patient sex/gender: M (ALOTT demographics.Gender)`            |
 | `ICU_ADMISSION`, `ICU_DISCHARGE`, `TRANSFER`                                                      | a fixed text saying what the event marks and that the release records no unit, room or bed                                               |
 
-`unit` is a String: the unit of the code's numeric values as the release records it, one per code
-(null where there is none). MEDS does not standardise this column. Medication codes carry it from
+`unit` is a String: the unit of the code's numeric values, one per code (null where there is none),
+written in [UCUM](https://ucum.org/) by suMEDS's `sumeds_normalize_units` post-stage (`units` becomes
+`{units}`). The spelling as the release records it stays in `unit_source_value`, a spelling suMEDS
+does not know is kept as it is, and the codes keep their names (`MEDICATION//START//<drug>//units`
+stays). Medication codes carry it from
 `HV_DISCRET_DOSE_UNIT` (`MEDICATION//START`) and `MAR_DOSE_UNIT` (`MEDICATION//MAR`), which is also
 the last code component of the codes split by unit, so that downstream tools read a code's unit from
 one place; the
-`dose_unit` column keeps the per-event value. The release records no unit for flowsheets, labs or
+`dose_unit` column keeps the per-event value as recorded. The release records no unit for flowsheets, labs or
 orders, and its documentation states none, so those codes have a null `unit`. Their descriptions
 (the release's display names) do not state units in a form that can be read off either: on the
 1.0.0 release, 5 of the 9,356 flowsheet, lab and order codes end in a bracketed token that is a
@@ -191,7 +194,8 @@ has more than one unit. The spec's first post-stage, `alott_unit_metadata`
 siblings, codes that differ only in their last component, which is their `unit` (one drug given in
 `mg` and in `g`): each gets the code without the unit (its stem) in `parent_codes`, and the stem gets
 a row of its own with the siblings' shared description (if they share one), the parents they all
-share and no `unit`. A stem has no events. In this ETL the siblings are exactly the codes split by
+share and no `unit`. A stem has no events. It runs before `sumeds_normalize_units`, on the units as
+recorded. In this ETL the siblings are exactly the codes split by
 unit (above); their `UNK` code has no `unit` and so no stem parent. `python -m ALOTT_MEDS.unit_metadata $MEDS_OUTPUT_DIR` runs the same step on an existing build.
 
 What each column means follows the table descriptions on the
@@ -242,13 +246,14 @@ than in every ETL. This package ships the rules for it,
 [`src/ALOTT_MEDS/sumeds_rules.yaml`](src/ALOTT_MEDS/sumeds_rules.yaml), registered in suMEDS's
 `sumeds.rules` entry-point group under the same name as the MEDS-Extract spec, `ALOTT`, so
 `--rules ALOTT` works for any suMEDS command. The spec runs them as its last stage, after
-`alott_unit_metadata`, so that suMEDS sees the final table (and a later `suMEDS-enrich` gives the
+`alott_unit_metadata` and suMEDS's `sumeds_normalize_units`, so that suMEDS sees the final table (and a later `suMEDS-enrich` gives the
 same result):
 
 ```yaml
 etl:
   post_stages:
     - alott_unit_metadata
+    - sumeds_normalize_units
     - sumeds_enrich: {rules: ALOTT}
 ```
 

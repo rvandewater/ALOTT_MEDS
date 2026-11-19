@@ -83,9 +83,13 @@ def test_rules_are_registered_under_the_spec_name():
 
 def test_spec_enriches_with_these_rules():
     """`meds-extract-run spec=ALOTT` ends with suMEDS's enrichment stage, using these rules, after the stage
-    that makes `unit` one String per code."""
+    that links unit siblings and suMEDS's stage that writes `unit` in UCUM."""
     etl = yaml.safe_load(CONFIG_FP.read_text())["etl"]
-    assert etl["post_stages"] == ["alott_unit_metadata", {"sumeds_enrich": {"rules": "ALOTT"}}]
+    assert etl["post_stages"] == [
+        "alott_unit_metadata",
+        "sumeds_normalize_units",
+        {"sumeds_enrich": {"rules": "ALOTT"}},
+    ]
 
 
 def test_rules_load_in_sumeds():
