@@ -66,6 +66,12 @@ alott_unit_keys = "ALOTT_MEDS.unit_keys:main"
 [project.entry-points."sumeds.rules"]
 ALOTT = "ALOTT_MEDS:sumeds_rules.yaml"
 
+# DRAFT ONLY: suMEDS from the branch that adds `sumeds.testing` (rvandewater/suMEDS, branch
+# `testing-module`), whose contract tests tests/ use. Once that is released, this table goes and the
+# pin above becomes `sumeds>=<that release>,<0.7`.
+[tool.uv.sources]
+sumeds = { git = "https://github.com/rvandewater/suMEDS", branch = "testing-module" }
+
 [project.urls]
 Homepage = "https://github.com/rvandewater/ALOTT_MEDS"
 Issues = "https://github.com/rvandewater/ALOTT_MEDS/issues"
