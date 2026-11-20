@@ -20,8 +20,8 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
-# The whole ETL is `event_configs.yaml`, run by MEDS-Extract's own `meds-extract-run`; the only
-# Python is one small unit pre-stage (`alott_unit_keys`). 0.9.0 is the first
+# The whole ETL is `event_configs.yaml`, run by MEDS-Extract's own `meds-extract-run`; this
+# package has no Python stages of its own. 0.9.0 is the first
 # MEDS-Extract that writes `unit` in `metadata/codes.parquet` as one String per code (stripped, blanks
 # dropped, several distinct units on a code an error; MEDS_extract#336); 0.8.1 was the first that
 # runs the extension stages a spec declares (`etl.pre_stages`, `etl.post_stages`) and writes the
@@ -55,11 +55,6 @@ dev = [
 # the whole ETL.
 [project.entry-points."MEDS_extract.pipelines"]
 ALOTT = "ALOTT_MEDS:event_configs.yaml"
-
-# Registers the unit pre-stage the spec declares, `alott_unit_keys`, which finds the medication codes
-# whose rows have more than one dose unit (those codes end in the unit).
-[project.entry-points."MEDS_transforms.stages"]
-alott_unit_keys = "ALOTT_MEDS.unit_keys:main"
 
 # Registers the suMEDS rules under the same name, so the spec's `sumeds_enrich` stage and
 # `--rules ALOTT` find them.

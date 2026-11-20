@@ -83,30 +83,19 @@ def test_unit_metadata_comes_from_the_dose_unit_columns():
     }
 
 
-def test_only_codes_flagged_by_the_pre_stage_end_in_their_unit():
-    """Each code with `unit` metadata ends in that same column (or `UNK`) only where the `alott_unit_keys`
-    side table flags it, so that a code with one unit keeps its layout and a code with several gets one per
-    unit."""
-    cfg = yaml.safe_load(CONFIG_FP.read_text())
-    table_cols = cfg["emr-datasets/medications"]["_table"]["cols"]
+def test_codes_with_a_unit_end_in_it():
+    """Each code with `unit` metadata ends in that same column (or `UNK` where a row records none), so a code
+    has one unit by construction."""
     for table, name, event in _events():
         unit = event.get("_metadata", {}).get("_self", {}).get("unit")
         if unit is None:
             continue
-        suffix = re.search(r"\{\$(_\w+_unit)\}\"$", event["code"])
-        assert suffix, f"{table}/{name}: {event['code']}"
-        assert re.fullmatch(
-            rf"""\(f"//\{{\{unit} \?\? 'UNK'\}}" if \$\w+_unit_in_code else ""\)""",
-            table_cols[suffix.group(1)],
-        ), table_cols[suffix.group(1)]
+        assert event["code"].endswith(f"//{{{unit} ?? 'UNK'}}\""), f"{table}/{name}: {event['code']}"
 
 
-def test_the_pre_stage_stages_the_side_tables_the_spec_joins():
-    from ALOTT_MEDS.unit_keys import MAR_TABLE, MEDICATIONS, START_TABLE
-
-    cfg = yaml.safe_load(CONFIG_FP.read_text())
-    assert cfg["etl"]["pre_stages"] == ["alott_unit_keys"]
-    assert set(cfg[MEDICATIONS]["_table"]["joins"]) == {START_TABLE, MAR_TABLE}
+def test_no_unit_pre_stage():
+    """No stage has to find the codes whose rows mix units: every code ends in its unit."""
+    assert "pre_stages" not in yaml.safe_load(CONFIG_FP.read_text())["etl"]
 
 
 def test_unit_siblings_are_linked_before_suMEDS_enriches():
