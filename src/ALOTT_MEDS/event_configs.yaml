@@ -86,7 +86,7 @@ emr-datasets/admission:
   # per-visit text, not guaranteed to be a function of the code. No `_metadata` at all (no
   # description, no `parent_codes`): the same ICD code occurs in several of the blocks below,
   # and MEDS-Extract refuses a code produced by two metadata-carrying code templates. The codes
-  # are already dotted ICD-10-CM, so `DIAGNOSIS//ICD//10//<code>` maps to `ICD10CM/<code>`
+  # are already dotted ICD-10-CM, so `DIAGNOSIS//ICD//10CM//<code>` maps to `ICD10CM//<code>`
   # directly; suMEDS adds that parent and the title with `sumeds_rules.yaml`.
   #
   # About 4% of cells hold a `, `-separated list of up to four codes. MESSY cannot explode a
@@ -95,35 +95,35 @@ emr-datasets/admission:
   # run from the 4th position down because MESSY-synth builds its synthetic value from the
   # first pattern it meets, and only a 4-code list satisfies all four.
   primary_diagnosis_4: &primary_diagnosis
-    code: f"DIAGNOSIS//ICD//10//{extract group 1 of /^[^,]+, [^,]+, [^,]+, ([^,]+)/ from $Primary_ICD10}"
+    code: f"DIAGNOSIS//ICD//10CM//{extract group 1 of /^[^,]+, [^,]+, [^,]+, ([^,]+)/ from $Primary_ICD10}"
     time: '$dischOffset::"%Y-%m-%d %H:%M:%S"'
     hadm_id: $aCSN
     text_value: $Primary_Diagnosis
     diagnosis_rank: "'PRIMARY'"
   primary_diagnosis_3:
     <<: *primary_diagnosis
-    code: f"DIAGNOSIS//ICD//10//{extract group 1 of /^[^,]+, [^,]+, ([^,]+)/ from $Primary_ICD10}"
+    code: f"DIAGNOSIS//ICD//10CM//{extract group 1 of /^[^,]+, [^,]+, ([^,]+)/ from $Primary_ICD10}"
   primary_diagnosis_2:
     <<: *primary_diagnosis
-    code: f"DIAGNOSIS//ICD//10//{extract group 1 of /^[^,]+, ([^,]+)/ from $Primary_ICD10}"
+    code: f"DIAGNOSIS//ICD//10CM//{extract group 1 of /^[^,]+, ([^,]+)/ from $Primary_ICD10}"
   primary_diagnosis:
     <<: *primary_diagnosis
-    code: f"DIAGNOSIS//ICD//10//{extract group 1 of /^([^,]+)/ from $Primary_ICD10}"
+    code: f"DIAGNOSIS//ICD//10CM//{extract group 1 of /^([^,]+)/ from $Primary_ICD10}"
   secondary_diagnosis_4: &secondary_diagnosis
-    code: f"DIAGNOSIS//ICD//10//{extract group 1 of /^[^,]+, [^,]+, [^,]+, ([^,]+)/ from $Secondary_ICD10}"
+    code: f"DIAGNOSIS//ICD//10CM//{extract group 1 of /^[^,]+, [^,]+, [^,]+, ([^,]+)/ from $Secondary_ICD10}"
     time: '$dischOffset::"%Y-%m-%d %H:%M:%S"'
     hadm_id: $aCSN
     text_value: $Secondary_Diagnosis
     diagnosis_rank: "'SECONDARY'"
   secondary_diagnosis_3:
     <<: *secondary_diagnosis
-    code: f"DIAGNOSIS//ICD//10//{extract group 1 of /^[^,]+, [^,]+, ([^,]+)/ from $Secondary_ICD10}"
+    code: f"DIAGNOSIS//ICD//10CM//{extract group 1 of /^[^,]+, [^,]+, ([^,]+)/ from $Secondary_ICD10}"
   secondary_diagnosis_2:
     <<: *secondary_diagnosis
-    code: f"DIAGNOSIS//ICD//10//{extract group 1 of /^[^,]+, ([^,]+)/ from $Secondary_ICD10}"
+    code: f"DIAGNOSIS//ICD//10CM//{extract group 1 of /^[^,]+, ([^,]+)/ from $Secondary_ICD10}"
   secondary_diagnosis:
     <<: *secondary_diagnosis
-    code: f"DIAGNOSIS//ICD//10//{extract group 1 of /^([^,]+)/ from $Secondary_ICD10}"
+    code: f"DIAGNOSIS//ICD//10CM//{extract group 1 of /^([^,]+)/ from $Secondary_ICD10}"
 
 emr-datasets/demographics:
   # Subject-level properties, so static (null time). The table is keyed per encounter, so a
