@@ -228,7 +228,10 @@ def test_e2e_synthetic():
 
         # Each code in a listed diagnosis cell is its own event.
         primary = data.filter(pl.col("diagnosis_rank") == "PRIMARY")
-        assert sorted(primary["code"].unique()) == ["DIAGNOSIS//ICD//10//I10", "DIAGNOSIS//ICD//10//I50.23"]
+        assert sorted(primary["code"].unique()) == [
+            "DIAGNOSIS//ICD//10CM//I10",
+            "DIAGNOSIS//ICD//10CM//I50.23",
+        ]
 
         # Order results are extracted with the same sentinels as labs.
         results = data.filter(pl.col("code").str.starts_with("ORDER//RESULT//"))

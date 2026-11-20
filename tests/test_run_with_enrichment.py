@@ -203,15 +203,15 @@ def test_diagnoses_get_titles_and_parents(enriched_output: Path):
 
     # The ETL writes no diagnosis description: the pack title fills it, and the vocabulary code
     # and its ancestors become the parents, each named in `parent_names`.
-    diagnosis = rows["DIAGNOSIS//ICD//10//I50.23"]
+    diagnosis = rows["DIAGNOSIS//ICD//10CM//I50.23"]
     assert diagnosis["description"] == title("ICD10CM", "I50.23")
     parents = ["ICD10CM//I50.23", "ICD10CM//I50.2", "ICD10CM//I50"]
     assert diagnosis["parent_codes"] == parents
     assert dict(diagnosis["parent_names"]) == {p: title("ICD10CM", p.split("//")[1]) for p in parents}
 
     # A code that is not in the vocabulary, and the non-diagnosis codes, are left alone.
-    assert rows["DIAGNOSIS//ICD//10//I10"]["description"] is None
-    assert not rows["DIAGNOSIS//ICD//10//I10"]["parent_codes"]
+    assert rows["DIAGNOSIS//ICD//10CM//I10"]["description"] is None
+    assert not rows["DIAGNOSIS//ICD//10CM//I10"]["parent_codes"]
     assert rows["FLOWSHEET//8"]["description"] == "Pulse"
     assert not rows["FLOWSHEET//8"]["parent_codes"]
 

@@ -14,17 +14,17 @@
 schema: sumeds-rules/0.1
 
 ontology:
-  # DIAGNOSIS//ICD//10//{code}, one code of admission.Primary_ICD10 or Secondary_ICD10. ALOTT writes
+  # DIAGNOSIS//ICD//10CM//{code}, one code of admission.Primary_ICD10 or Secondary_ICD10. ALOTT writes
   # ICD-10-CM codes with the dot after the category, the format of suMEDS's ICD-10-CM data and of
   # OMOP concept codes. Validated codes get the CMS title and their ancestors as parents.
   - id: alott-icd10cm-diagnoses
-    pattern: '^DIAGNOSIS//ICD//10//(?P<code>[A-Z][0-9][0-9A-Z](?:\.[0-9A-Z]{1,4})?)$'
+    pattern: '^DIAGNOSIS//ICD//10CM//(?P<code>[A-Z][0-9][0-9A-Z](?:\.[0-9A-Z]{1,4})?)$'
     vocabulary: ICD10CM
     validate: pack
 
 hierarchy:
   # Same-dataset parents: the nearest ICD-10-CM ancestor that is itself an ALOTT diagnosis code,
-  # e.g. DIAGNOSIS//ICD//10//I50.2 for DIAGNOSIS//ICD//10//I50.23.
+  # e.g. DIAGNOSIS//ICD//10CM//I50.2 for DIAGNOSIS//ICD//10CM//I50.23.
   - id: alott-diagnosis-parents-in-dataset
     from_ontology: true
     rules: [alott-icd10cm-diagnoses]
