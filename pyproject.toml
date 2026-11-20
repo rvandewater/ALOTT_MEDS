@@ -43,8 +43,10 @@ dependencies = [
 
 [dependency-groups]
 # `shfmt-py` bundles the `shfmt` binary that the `mdformat-shfmt` pre-commit hook shells
-# out to, keeping local + CI behavior in lock step.
+# out to, keeping local + CI behavior in lock step. suMEDS 0.6.8's `testing` extra ships
+# `sumeds.testing`, the fake ontology packs and the enrichment and rules contract tests that tests/ use.
 dev = [
+    "sumeds[testing]>=0.6.8,<0.7",
     "pre-commit~=3.8",
     "ruff>=0.11,<1.0",
     "pytest~=9.0",
@@ -65,12 +67,6 @@ alott_unit_keys = "ALOTT_MEDS.unit_keys:main"
 # `--rules ALOTT` find them.
 [project.entry-points."sumeds.rules"]
 ALOTT = "ALOTT_MEDS:sumeds_rules.yaml"
-
-# DRAFT ONLY: suMEDS from the branch that adds `sumeds.testing` (rvandewater/suMEDS, branch
-# `testing-module`), whose contract tests tests/ use. Once that is released, this table goes and the
-# pin above becomes `sumeds>=<that release>,<0.7`.
-[tool.uv.sources]
-sumeds = { git = "https://github.com/rvandewater/suMEDS", branch = "testing-module" }
 
 [project.urls]
 Homepage = "https://github.com/rvandewater/ALOTT_MEDS"
