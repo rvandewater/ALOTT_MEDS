@@ -23,7 +23,9 @@ This pipeline extracts the EMR tables of ALOTT (from PhysioNet,
 https://physionet.org/content/alott/) into the
 [MEDS](https://github.com/Medical-Event-Data-Standard/meds) format. It is built the same way
 as [MIMIC_IV_MEDS](https://github.com/Medical-Event-Data-Standard/MIMIC_IV_MEDS): one
-declarative [MEDS-Extract](https://github.com/mmcdermott/MEDS_extract) spec, no Python.
+declarative [MEDS-Extract](https://github.com/mmcdermott/MEDS_extract) spec, plus two small
+stages that keep each code to a single `unit` String (see [Codes](#codes) and
+[Code metadata](#code-metadata)).
 
 ## Usage:
 
@@ -120,31 +122,50 @@ second component says which: `ORDERED` or `RESULT`, `START` or `STOP`, or `MAR`
 `UNK` stands for a null component that must not drop the row (see
 [Null handling](#null-handling)).
 
-| Code                                             | Table        | Time                  | Value and extra columns                                                                |
-| ------------------------------------------------ | ------------ | --------------------- | -------------------------------------------------------------------------------------- |
-| `HOSPITAL_ADMISSION//<admission type>//<source>` | admission    | admission             | reason for visit in `text_value`                                                       |
-| `HOSPITAL_DISCHARGE//<destination>`              | admission    | discharge             |                                                                                        |
-| `DIAGNOSIS//ICD//10//<ICD-10-CM code>`           | admission    | discharge             | diagnosis text; `diagnosis_rank` `PRIMARY` or `SECONDARY`                              |
-| `<FIELD>//<value>`                               | demographics | static                | `FIELD` is `GENDER`, `MARITAL_STATUS`, `RACE`, `ETHNICITY`, `LANGUAGE` or `BLOOD_TYPE` |
-| `ALLERGY//<allergen>`                            | allergy      | static                | reaction in `text_value`                                                               |
-| `FLOWSHEET//<FLO_MEAS_ID>`                       | flowsheet    | recorded              | reading or score; `flow_type`                                                          |
-| `ICU_ADMISSION`, `ICU_DISCHARGE`                 | icu          | start, end            |                                                                                        |
-| `TRANSFER`                                       | location     | start                 |                                                                                        |
-| `MEDICATION//START//<drug>`                      | medications  | start date, 23:59:59  | ordered dose (raw text if a range); `dose_unit`, `frequency`                           |
-| `MEDICATION//STOP//<drug>`                       | medications  | end date, 23:59:59    |                                                                                        |
-| `MEDICATION//MAR//<drug>//<action>`              | medications  | administration        | given dose; `dose_unit`, `route`                                                       |
-| `LAB//ORDERED//<PROC_ID>`                        | labs         | order date, 23:59:59  |                                                                                        |
-| `LAB//RESULT//<PROC_ID>//<component>`            | labs         | result date, 23:59:59 | result; `order_status`                                                                 |
-| `ORDER//ORDERED//<order type>//<PROC_ID>`        | orders       | order date, 23:59:59  | `order_status`                                                                         |
-| `ORDER//RESULT//<order type>//<PROC_ID>`         | orders       | result date, 23:59:59 | result; `order_status`                                                                 |
+A code has one unit. Most drugs are ordered, and given per action, in one dose unit; their codes are
+`MEDICATION//START//<drug>` and `MEDICATION//MAR//<drug>//<action>`, as in release 0.1.0. Where the
+rows of such a code record more than one unit, and only there, the code ends in the dose unit as
+recorded (`HV_DISCRET_DOSE_UNIT`, `MAR_DOSE_UNIT`), one code per unit, and the code's rows that
+record no unit end in `UNK`. The code without the unit stays in `metadata/codes.parquet`, without
+events, as the parent of its per-unit codes (see [Code metadata](#code-metadata)). On the 1.0.0
+release this splits 1,266 of the 25,606 start and administration codes (826 start, 440
+administration) into 2,767 per-unit codes and 653 `UNK` codes, and leaves the other 24,340
+unchanged. Codes with one unit are not renamed, because that would break references to them for
+nothing. Which codes are split is read from the data on every run, by the pre-stage
+`alott_unit_keys` ([`src/ALOTT_MEDS/unit_keys.py`](src/ALOTT_MEDS/unit_keys.py)), so the spec names
+no drug: it stages two side tables, `alott_start_unit_in_code` and `alott_mar_unit_in_code`, that
+the medications block joins. `MEDICATION//STOP` codes have no dose and are unchanged.
+
+A split code's rows without a unit get `//UNK` rather than staying on the code without the unit:
+that code is the parent of the per-unit codes, standing for the drug in any unit, and doses of
+unknown unit would otherwise be counted under it next to the per-unit ones. `UNK` keeps them apart
+with a null `unit`, as `UNK` marks a missing component everywhere else in this ETL. A code with one
+unit keeps its rows without a unit, as in 0.1.0; its `unit` is the one its other rows record.
+
+| Code                                               | Table        | Time                  | Value and extra columns                                                                |
+| -------------------------------------------------- | ------------ | --------------------- | -------------------------------------------------------------------------------------- |
+| `HOSPITAL_ADMISSION//<admission type>//<source>`   | admission    | admission             | reason for visit in `text_value`                                                       |
+| `HOSPITAL_DISCHARGE//<destination>`                | admission    | discharge             |                                                                                        |
+| `DIAGNOSIS//ICD//10//<ICD-10-CM code>`             | admission    | discharge             | diagnosis text; `diagnosis_rank` `PRIMARY` or `SECONDARY`                              |
+| `<FIELD>//<value>`                                 | demographics | static                | `FIELD` is `GENDER`, `MARITAL_STATUS`, `RACE`, `ETHNICITY`, `LANGUAGE` or `BLOOD_TYPE` |
+| `ALLERGY//<allergen>`                              | allergy      | static                | reaction in `text_value`                                                               |
+| `FLOWSHEET//<FLO_MEAS_ID>`                         | flowsheet    | recorded              | reading or score; `flow_type`                                                          |
+| `ICU_ADMISSION`, `ICU_DISCHARGE`                   | icu          | start, end            |                                                                                        |
+| `TRANSFER`                                         | location     | start                 |                                                                                        |
+| `MEDICATION//START//<drug>[//<dose unit>]`         | medications  | start date, 23:59:59  | ordered dose (raw text if a range); `dose_unit`, `frequency`                           |
+| `MEDICATION//STOP//<drug>`                         | medications  | end date, 23:59:59    |                                                                                        |
+| `MEDICATION//MAR//<drug>//<action>[//<dose unit>]` | medications  | administration        | given dose; `dose_unit`, `route`                                                       |
+| `LAB//ORDERED//<PROC_ID>`                          | labs         | order date, 23:59:59  |                                                                                        |
+| `LAB//RESULT//<PROC_ID>//<component>`              | labs         | result date, 23:59:59 | result; `order_status`                                                                 |
+| `ORDER//ORDERED//<order type>//<PROC_ID>`          | orders       | order date, 23:59:59  | `order_status`                                                                         |
+| `ORDER//RESULT//<order type>//<PROC_ID>`           | orders       | result date, 23:59:59 | result; `order_status`                                                                 |
 
 ### Code metadata
 
 `metadata/codes.parquet` gives every code a `description`, except diagnoses (see
 [Diagnoses](#diagnoses)), which suMEDS describes (see
 [Enriching code metadata with suMEDS](#enriching-code-metadata-with-sumeds)). All of them come
-from `_metadata: _self:` blocks in the spec, evaluated on the extracted rows, so the package
-still ships no Python, only the spec and a suMEDS rules file:
+from `_metadata: _self:` blocks in the spec, evaluated on the extracted rows:
 
 | Codes                                                                                             | Description                                                                                                                              |
 | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
@@ -152,18 +173,44 @@ still ships no Python, only the spec and a suMEDS rules file:
 | `HOSPITAL_ADMISSION`, `HOSPITAL_DISCHARGE`, the six demographic families, `ALLERGY`, `MEDICATION` | the code's own components, each named with the column it comes from, e.g. `Patient sex/gender: M (ALOTT demographics.Gender)`            |
 | `ICU_ADMISSION`, `ICU_DISCHARGE`, `TRANSFER`                                                      | a fixed text saying what the event marks and that the release records no unit, room or bed                                               |
 
+`unit` is a String: the unit of the code's numeric values, one per code (null where there is none),
+written in [UCUM](https://ucum.org/) by suMEDS's `sumeds_normalize_units` post-stage (`units` becomes
+`{units}`). The spelling as the release records it stays in `unit_source_value`, a spelling suMEDS
+does not know is kept as it is, and the codes keep their names (`MEDICATION//START//<drug>//units`
+stays). Medication codes carry it from
+`HV_DISCRET_DOSE_UNIT` (`MEDICATION//START`) and `MAR_DOSE_UNIT` (`MEDICATION//MAR`), which is also
+the last code component of the codes split by unit, so that downstream tools read a code's unit from
+one place; the
+`dose_unit` column keeps the per-event value as recorded. The release records no unit for flowsheets, labs or
+orders, and its documentation states none, so those codes have a null `unit`. Their descriptions
+(the release's display names) do not state units in a form that can be read off either: on the
+1.0.0 release, 5 of the 9,356 flowsheet, lab and order codes end in a bracketed token that is a
+known unit, 3 of those are single letters or on codes without values, so none is taken.
+
+MEDS-Extract (0.9 and later) writes `unit` as one String per code: blanks are stripped and empty
+entries dropped, units are otherwise kept as recorded, and the run fails, naming the codes, if a code
+has more than one unit. The spec's first post-stage, suMEDS's
+[`sumeds_link_unit_siblings`](https://github.com/rvandewater/suMEDS/blob/main/docs/unit_siblings.md)
+(with its default options), then links unit siblings, codes that differ only in their last
+component, which is their `unit` (one drug given in `mg` and in `g`): each gets the code without the
+unit (its stem) in `parent_codes`, and the stem gets a row of its own with the siblings' shared
+description (or the same one but for the unit each states, which is left out), the parents they all
+share and no `unit`. A stem has no events. In this ETL the siblings are the codes split by unit
+(above), and a code of the same item whose unit was not recorded (`…//UNK`) joins them. It runs
+before `sumeds_normalize_units`. This shared stage replaced the package's own `alott_unit_metadata`
+(suMEDS 0.6.6); `suMEDS-link-unit-siblings $MEDS_OUTPUT_DIR` runs the same step on an existing build.
+
 What each column means follows the table descriptions on the
 [ALOTT 1.0.0 PhysioNet page](https://physionet.org/content/alott/1.0.0/) and the column names
 in the authors' release code ([Carescape](https://github.com/johnclawrence/Carescape), MIT);
 the descriptions paraphrase them and copy no text.
 
-MEDS-Extract 0.8 attaches `_metadata` only to a code whose expression references a source
-column ([MEDS_extract#166](https://github.com/mmcdermott/MEDS_extract/issues/166)), so the
-three constant codes are written `'ICU_ADMISSION' if $startOffsetDate == $startOffsetDate`.
-The guard tests the event's own time column, which is false only where the time is null, and
-such a row produces no event anyway: the extracted events are unchanged.
+The three constant codes (`ICU_ADMISSION`, `ICU_DISCHARGE`, `TRANSFER`) are plain literals:
+MEDS-Extract 0.8.1 and later attach `_self` metadata to literal codes
+([MEDS_extract#166](https://github.com/mmcdermott/MEDS_extract/issues/166)), and a row whose
+time is null yields no event.
 
-The ETL writes no `parent_codes`. The only standard vocabulary in the EMR tables is
+Apart from unit-sibling stems, the ETL writes no `parent_codes`. The only standard vocabulary in the EMR tables is
 ICD-10-CM, and diagnoses cannot carry metadata (below), so their ICD-10-CM parents come from
 suMEDS. Labs and orders are keyed by Epic procedure IDs,
 flowsheets by Epic flowsheet IDs and medications by name; the release has no LOINC, RxNorm or
@@ -199,13 +246,21 @@ Vocabulary work is maintained once, in [suMEDS](https://github.com/rvandewater/S
 than in every ETL. This package ships the rules for it,
 [`src/ALOTT_MEDS/sumeds_rules.yaml`](src/ALOTT_MEDS/sumeds_rules.yaml), registered in suMEDS's
 `sumeds.rules` entry-point group under the same name as the MEDS-Extract spec, `ALOTT`, so
-`--rules ALOTT` works for any suMEDS command. The spec runs them as its last stage:
+`--rules ALOTT` works for any suMEDS command. The spec runs them as its last stage, after suMEDS's
+`sumeds_link_unit_siblings` and `sumeds_normalize_units`, so that suMEDS sees the final table (and a later `suMEDS-enrich` gives the
+same result):
 
 ```yaml
 etl:
   post_stages:
+    - sumeds_link_unit_siblings
+    - sumeds_normalize_units
     - sumeds_enrich: {rules: ALOTT}
 ```
+
+suMEDS keeps existing `parent_codes`, including the in-dataset unit-sibling stems: it reads each
+entry as a possible `VOCABULARY//CODE` reference, finds no pack or Athena vocabulary named
+`MEDICATION` and leaves the entry as it is.
 
 The stage replaces `metadata/codes.parquet` only once the enriched table is complete, and it stays
 valid MEDS code metadata. By default the ICD-10-CM data comes from suMEDS's ontology packs, fetched
@@ -219,7 +274,7 @@ jq .sumeds_enrichment.enriched $MEDS_OUTPUT_DIR/metadata/dataset.json
 ```
 
 Enrichment soft-fails: if it cannot run (a server without internet, for example), the ETL still
-succeeds with `metadata/codes.parquet` left exactly as MEDS-Extract writes it, and `dataset.json`
+succeeds with `metadata/codes.parquet` left as the ETL wrote it, and `dataset.json`
 records `"enriched": false`. The warning, with the command that finishes the enrichment, is in
 `$MEDS_OUTPUT_DIR/.logs/pipeline.log`, not on the console. MEDS-Extract marks the stage done either
 way, so running `meds-extract-run` again does not retry it. Enrich the build afterwards, with the

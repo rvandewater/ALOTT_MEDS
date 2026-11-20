@@ -186,7 +186,7 @@ def test_data_matches_the_plain_etl(enriched_output: Path, plain_output: Path):
 
 
 def test_enrichment_keeps_the_plain_metadata(enriched_output: Path, plain_output: Path):
-    """Enrichment only adds: every code keeps its description, and any parents it had lead the new
+    """Enrichment only adds: every code keeps its description and unit, and any parents it had lead the new
     list. (The plain ETL writes no `parent_codes` column at all; see the README.)"""
     enriched, plain = _code_rows(enriched_output), _code_rows(plain_output)
     assert set(enriched) == set(plain)
@@ -195,6 +195,7 @@ def test_enrichment_keeps_the_plain_metadata(enriched_output: Path, plain_output
             assert enriched[code]["description"] == row["description"], code
         parents = row.get("parent_codes") or []
         assert (enriched[code]["parent_codes"] or [])[: len(parents)] == parents, code
+        assert enriched[code]["unit"] == row["unit"], code
 
 
 def test_diagnoses_get_titles_and_parents(enriched_output: Path):
