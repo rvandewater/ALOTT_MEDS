@@ -43,8 +43,10 @@ dependencies = [
 
 [dependency-groups]
 # `shfmt-py` bundles the `shfmt` binary that the `mdformat-shfmt` pre-commit hook shells
-# out to, keeping local + CI behavior in lock step.
+# out to, keeping local + CI behavior in lock step. suMEDS 0.6.8's `testing` extra ships
+# `sumeds.testing`, the fake ontology packs and the enrichment and rules contract tests that tests/ use.
 dev = [
+    "sumeds[testing]>=0.6.8,<0.7",
     "pre-commit~=3.8",
     "ruff>=0.11,<1.0",
     "pytest~=9.0",

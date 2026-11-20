@@ -1,19 +1,24 @@
 """The packaged suMEDS rules load in suMEDS and match the code layouts of the spec.
 
-suMEDS validates the rules file itself (``sumeds.load_rules``) and resolves codes with the rule objects its
-enrichment uses, so these tests only state what ALOTT's codes must resolve to. The example codes are built
-from the code templates in ``event_configs.yaml`` with synthetic (public example) values, so a change to a
-code layout that the rules no longer match fails here. Nothing is read over the network; the enrichment
-itself runs offline in ``test_run_with_enrichment.py``.
+suMEDS's shared rules contract (``sumeds.testing.contracts.RulesContract``) checks that the rules are
+packaged, registered under the spec's name, load in suMEDS with anchored patterns, and that the spec runs
+the suMEDS post-stages in order; it resolves codes with the rule objects suMEDS's enrichment uses, so
+these tests only state what ALOTT's codes must resolve to. The example codes are built from the code
+templates in ``event_configs.yaml`` with synthetic (public example) values, so a change to a code layout
+that the rules no longer match fails here. Nothing is read over the network; the enrichment itself runs
+offline in ``test_run_with_enrichment.py``.
 """
 
 import re
 import tomllib
 from importlib.resources import files
 from pathlib import Path
+from typing import ClassVar
 
+import pytest
 import yaml
-from sumeds import load_rules, registered_rules
+from sumeds import load_rules
+from sumeds.testing.contracts import RulesContract
 
 ROOT = Path(__file__).parents[1]
 RULES_FP = ROOT / "src" / "ALOTT_MEDS" / "sumeds_rules.yaml"
@@ -69,48 +74,31 @@ def example_codes() -> set[str]:
     return codes - {None}
 
 
-def test_rules_file_is_packaged():
+class TestRules(RulesContract):
+    rules_name = "ALOTT"
+    expected_ontology: ClassVar = {
+        code: ("alott-icd10cm-diagnoses", value) for code, value in EXPECTED_DIAGNOSES.items()
+    }
+
+    @pytest.fixture(scope="class")
+    @classmethod
+    def example_codes(cls) -> set[str]:
+        return example_codes()
+
+
+def test_rules_are_listed_as_package_data():
+    """Setuptools ships only the listed data files, so without this entry wheels would lack the rules."""
     package_data = tomllib.loads((ROOT / "pyproject.toml").read_text())["tool"]["setuptools"]["package-data"]
     assert "sumeds_rules.yaml" in package_data["ALOTT_MEDS"]
     assert files("ALOTT_MEDS").joinpath("sumeds_rules.yaml").is_file()
 
 
-def test_rules_are_registered_under_the_spec_name():
-    """The spec's `sumeds_enrich` stage and `--rules ALOTT` find the rules by this entry point."""
-    assert registered_rules()["ALOTT"] == "ALOTT_MEDS:sumeds_rules.yaml"
-    assert load_rules("ALOTT") == load_rules(RULES_FP)
-
-
-def test_spec_enriches_with_these_rules():
-    """`meds-extract-run spec=ALOTT` ends with suMEDS's enrichment stage, using these rules, after the stage
-    that links unit siblings and suMEDS's stage that writes `unit` in UCUM."""
-    etl = yaml.safe_load(CONFIG_FP.read_text())["etl"]
-    assert etl["post_stages"] == [
-        "sumeds_link_unit_siblings",
-        "sumeds_normalize_units",
-        {"sumeds_enrich": {"rules": "ALOTT"}},
-    ]
-
-
-def test_rules_load_in_sumeds():
-    """Loading fails on any rule suMEDS rejects; each pattern must also span a whole code."""
-    rules = load_rules(RULES_FP)
-    for rule in (*rules.vocabulary_rules, *rules.hierarchy):
-        if rule.pattern is not None:
-            assert rule.pattern.pattern.startswith("^"), rule.id
-            assert rule.pattern.pattern.endswith("$"), rule.id
-
-
 def test_diagnosis_rule_matches_every_diagnosis_template():
+    """Every diagnosis template yields a code the one ontology rule resolves (that it matches no other family
+    is in the contract's `test_ontology_rules_resolve_the_examples`)."""
     rules = load_rules(RULES_FP)
     assert not rules.crosswalk
     (rule,) = rules.ontology
-    examples = example_codes()
-    assert set(EXPECTED_DIAGNOSES) <= examples, set(EXPECTED_DIAGNOSES) - examples
-
-    resolved = {code: value for code in examples if (value := rule.resolve(code)) is not None}
-    assert resolved == EXPECTED_DIAGNOSES
-    # Every diagnosis template yields a code the rule resolves; no other family is matched.
     diagnosis_templates = [t for t in code_templates() if t.startswith('f"DIAGNOSIS//')]
     assert len(diagnosis_templates) == 8
     for template in diagnosis_templates:

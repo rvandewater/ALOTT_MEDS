@@ -455,8 +455,12 @@ generated in [`tests/e2e_synthetic_test.py`](https://github.com/rvandewater/ALOT
 ontology pack, offline, and without the stage (`skip_stages`), and against an empty pack source, to
 check the soft failure, its `suMEDS-enrich` retry and `strict`.
 [`tests/test_sumeds_rules.py`](tests/test_sumeds_rules.py) checks that the rules are registered as
-`ALOTT` and match the diagnosis codes the spec writes. These check the spec's mechanics, not its
-agreement with the real release. Never commit raw ALOTT data or MEDS output derived from it.
+`ALOTT` and match the diagnosis codes the spec writes. Both build on suMEDS's shared contract tests
+(`sumeds.testing.contracts`, see suMEDS's
+[Testing an ETL](https://github.com/rvandewater/suMEDS/blob/main/docs/testing.md)), so they only state
+what is ALOTT's own: the synthetic packs and the codes and parents it expects. These check the spec's
+mechanics, not its agreement with the real release. Never commit raw ALOTT data or MEDS output derived
+from it.
 
 ## Breaking changes
 
