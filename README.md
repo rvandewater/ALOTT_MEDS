@@ -183,14 +183,17 @@ MEDS-Extract (0.9 and later) writes `unit` as one String per code: blanks are st
 entries dropped, units are otherwise kept as recorded, and the run fails, naming the codes, if a code
 has more than one unit. The spec's first post-stage, suMEDS's
 [`sumeds_link_unit_siblings`](https://github.com/rvandewater/suMEDS/blob/main/docs/unit_siblings.md)
-(with its default options), then links unit siblings, codes that differ only in their last
+then links unit siblings, codes that differ only in their last
 component, which is their `unit` (one drug given in `mg` and in `g`): each gets the code without the
 unit (its stem) in `parent_codes`, and the stem gets a row of its own with the siblings' shared
 description (or the same one but for the unit each states, which is left out), the parents they all
 share and no `unit`. A stem has no events. In this ETL the siblings are the start (administration)
 codes of one drug (and action) in different units (above), and a code of the same item whose unit
-was not recorded (`…//UNK`) joins them. It runs
-before `sumeds_normalize_units`. This shared stage replaced the package's own `alott_unit_metadata`
+was not recorded (`…//UNK`) joins them. With `link_single_units: true` and
+`unknown_unit_prefixes: [MEDICATION//START//, MEDICATION//MAR//]`, a code ending in its unit gets its
+stem also when its drug has a single unit, and so does a start or MAR code without a recorded dose
+unit (`MEDICATION//START//{drug}//UNK`), so every start pairs with its `MEDICATION//END//{drug}` by
+stem. It runs before `sumeds_normalize_units`. This shared stage replaced the package's own `alott_unit_metadata`
 (suMEDS 0.6.6); `suMEDS-link-unit-siblings $MEDS_OUTPUT_DIR` runs the same step on an existing build.
 
 What each column means follows the table descriptions on the
@@ -246,7 +249,9 @@ same result):
 ```yaml
 etl:
   post_stages:
-    - sumeds_link_unit_siblings
+    - sumeds_link_unit_siblings:
+        link_single_units: true
+        unknown_unit_prefixes: [MEDICATION//START//, MEDICATION//MAR//]
     - sumeds_normalize_units
     - sumeds_enrich: {rules: ALOTT}
 ```
@@ -454,6 +459,15 @@ agreement with the real release. Never commit raw ALOTT data or MEDS output deri
 ## Breaking changes
 
 ### Unreleased (after 0.1.0)
+
+- **`codes.parquet` gains unit-free stem rows and stem parents for single-unit codes**
+    ([#20](https://github.com/rvandewater/ALOTT_MEDS/pull/20)). suMEDS's `sumeds_link_unit_siblings` now runs with `link_single_units: true`:
+    every code that ends in its unit gets the code without the unit (its stem) as its last
+    `parent_codes` entry, and the stem gets a row of its own (no unit, no events), also when the
+    item has a single unit (`MEDICATION//START//{drug}//{unit}` gets `MEDICATION//START//{drug}`, `MEDICATION//MAR//{drug}//{action}//{unit}` gets `MEDICATION//MAR//{drug}//{action}`). Before, only items recorded in two or more units did. A start or MAR code without a recorded dose unit (`…//UNK`) gets its stem too (`unknown_unit_prefixes`).
+    Events are unchanged. On a synthetic (MESSY-synth) build, 51 codes gain a stem parent and 51 stem rows are added (48 `MEDICATION//MAR`, 3 `MEDICATION//START`), and all 13 starts pair with their end by stem (10 before). To migrate, nothing is needed unless a tool expects every
+    `codes.parquet` row to have events: drop the stem rows (no `code_template`, no `unit`), or
+    ignore a parent that is the code without its last `//` component.
 
 - **Order end codes use `END`, not `STOP`** ([alignEHR#53](https://github.com/rvandewater/alignEHR/issues/53)):
     `MEDICATION//STOP//<drug>` is now `MEDICATION//END//<drug>`, the spelling all MEDS ETLs move to for the

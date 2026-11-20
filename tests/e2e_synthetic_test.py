@@ -269,13 +269,18 @@ def test_e2e_synthetic():
         codes_tbl = pq.read_table(metadata / "codes.parquet")
         CodeMetadataSchema.validate(codes_tbl)
         codes = pl.from_arrow(codes_tbl)
-        # The only codes without events are the stems of codes that differ only in their unit (below).
+        # The only codes without events are the unit-free stems of the start and MAR codes (below):
+        # of codes that differ only in their unit, and, with `link_single_units` and
+        # `unknown_unit_prefixes`, of a code in a single unit or with none recorded (`…//UNK//UNK`,
+        # whose action is `UNK` too).
         stems = set(codes["code"]) - set(data["code"].unique())
         assert stems == {
             "MEDICATION//START//FUROSEMIDE 40 MG TAB",
             "MEDICATION//START//HEPARIN 5000 UNIT/ML INJ",
             "MEDICATION//MAR//FUROSEMIDE 40 MG TAB//Given",
             "MEDICATION//MAR//FUROSEMIDE 40 MG TAB//UNK",
+            "MEDICATION//MAR//HEPARIN 5000 UNIT/ML INJ//Given",
+            "MEDICATION//MAR//HEPARIN 5000 UNIT/ML INJ//UNK",
         }
         assert set(data["code"].unique()) <= set(codes["code"])
         undescribed = codes.filter(pl.col("description").is_null())["code"]
@@ -352,8 +357,10 @@ def test_e2e_synthetic():
             assert units[stem] is None and parents[stem] is None
             assert described[stem] == described[f"{stem}//{suffixes[0]}"]
         assert parents[f"MEDICATION//MAR//{drug}//Given//UNK"] == [f"MEDICATION//MAR//{drug}//Given"]
-        assert parents[f"MEDICATION//MAR//{other}//Given//units"] is None
-        assert parents[f"MEDICATION//MAR//{other}//UNK//UNK"] is None
+        # A code in a single unit gets its stem too (`link_single_units`), and so does a MAR code
+        # without a recorded unit (`unknown_unit_prefixes`); here its action is `UNK` as well.
+        assert parents[f"MEDICATION//MAR//{other}//Given//units"] == [f"MEDICATION//MAR//{other}//Given"]
+        assert parents[f"MEDICATION//MAR//{other}//UNK//UNK"] == [f"MEDICATION//MAR//{other}//UNK"]
         # Every event's own dose unit, stripped, is its code's unit as recorded; a blank one is none.
         doses = data.with_columns(pl.col("dose_unit").str.strip_chars())
         doses = doses.filter(pl.col("dose_unit") != "").join(codes, on="code")

@@ -140,4 +140,9 @@ def test_no_unit_pre_stage():
 
 def test_unit_siblings_are_linked_before_suMEDS_enriches():
     post_stages = yaml.safe_load(CONFIG_FP.read_text())["etl"]["post_stages"]
-    assert post_stages[0] == "sumeds_link_unit_siblings"
+    assert post_stages[0] == {
+        "sumeds_link_unit_siblings": {
+            "link_single_units": True,
+            "unknown_unit_prefixes": ["MEDICATION//START//", "MEDICATION//MAR//"],
+        }
+    }
