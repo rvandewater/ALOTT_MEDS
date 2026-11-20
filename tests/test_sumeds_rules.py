@@ -23,7 +23,7 @@ CONFIG_FP = ROOT / "src" / "ALOTT_MEDS" / "event_configs.yaml"
 ICD10_CELLS = ["I50.23, E11.9, N18.3, Z79.4", "S72.001A", "I10", "U07.1, J12.82"]
 # The vocabulary code each diagnosis example resolves to through `alott-icd10cm-diagnoses`.
 EXPECTED_DIAGNOSES = {
-    f"DIAGNOSIS//ICD//10//{code}": code
+    f"DIAGNOSIS//ICD//10CM//{code}": code
     for code in ["I50.23", "E11.9", "N18.3", "Z79.4", "S72.001A", "I10", "U07.1", "J12.82"]
 }
 # Field of a code template: `{$col}`, `{$col ?? 'DEFAULT'}` or `{extract group N of /re/ from $col}`.
@@ -115,7 +115,7 @@ def test_diagnosis_rule_matches_every_diagnosis_template():
     assert len(diagnosis_templates) == 8
     for template in diagnosis_templates:
         assert rule.resolve(render(template, ICD10_CELLS[0])), template
-    assert rule.resolve("DIAGNOSIS//ICD//10//X") is None
+    assert rule.resolve("DIAGNOSIS//ICD//10CM//X") is None
 
 
 def test_diagnosis_parents_come_from_the_diagnosis_rule():
