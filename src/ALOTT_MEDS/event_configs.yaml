@@ -7,8 +7,8 @@
 #
 # That command also enriches `metadata/codes.parquet` with suMEDS, as the `sumeds_enrich`
 # post-stage declared under `etl:` below, using `sumeds_rules.yaml`, registered with suMEDS under
-# the same name. `skip_stages=[sumeds_enrich]` leaves it out. Before it, `alott_unit_metadata`
-# (registered by this package) links codes in `codes.parquet` that differ only in their unit, and
+# the same name. `skip_stages=[sumeds_enrich]` leaves it out. Before it, suMEDS's
+# `sumeds_link_unit_siblings` links codes in `codes.parquet` that differ only in their unit, and
 # before the extraction `alott_unit_keys` finds the medication codes that need their dose unit in the code.
 #
 # Only the EMR tables (`emr-datasets/`) are extracted. The telemetry folders (alarms,
@@ -49,14 +49,16 @@ etl:
   # records the result in `dataset.json` under `sumeds_enrichment`. If it cannot (no internet, say),
   # the ETL still succeeds, unenriched, and `suMEDS-enrich <output_dir>` finishes it later.
   #
-  # First, `alott_unit_metadata` gives codes that differ only in their unit the code without it as a
-  # parent. (MEDS-Extract writes `unit` as one String per code and fails the run if a code has more
-  # than one unit.) It runs before suMEDS so that suMEDS records the coverage of
-  # the final table and a later `suMEDS-enrich` gives the same table as enriching in the run.
+  # First, suMEDS's `sumeds_link_unit_siblings` (suMEDS's docs/unit_siblings.md, default options)
+  # gives codes that differ only in their unit the code without it (the stem) as a parent, and the
+  # stem a row of its own; a code whose unit was not recorded (`…//UNK`) joins its item's siblings.
+  # (MEDS-Extract writes `unit` as one String per code and fails the run if a code has more than one
+  # unit.) It runs before unit normalisation and the enrichment so that suMEDS records the coverage
+  # of the final table and a later `suMEDS-enrich` gives the same table as enriching in the run.
   pre_stages:
     - alott_unit_keys
   post_stages:
-    - alott_unit_metadata
+    - sumeds_link_unit_siblings
     # One UCUM spelling for every `unit` (suMEDS's shared table, e.g. `Cel`, `mm[Hg]`, `mg/dL`); the
     # spelling as recorded stays in `unit_source_value`, and an unknown spelling is kept as it is.
     - sumeds_normalize_units

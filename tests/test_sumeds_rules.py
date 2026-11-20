@@ -86,7 +86,7 @@ def test_spec_enriches_with_these_rules():
     that links unit siblings and suMEDS's stage that writes `unit` in UCUM."""
     etl = yaml.safe_load(CONFIG_FP.read_text())["etl"]
     assert etl["post_stages"] == [
-        "alott_unit_metadata",
+        "sumeds_link_unit_siblings",
         "sumeds_normalize_units",
         {"sumeds_enrich": {"rules": "ALOTT"}},
     ]

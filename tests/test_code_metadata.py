@@ -111,4 +111,4 @@ def test_the_pre_stage_stages_the_side_tables_the_spec_joins():
 
 def test_unit_siblings_are_linked_before_suMEDS_enriches():
     post_stages = yaml.safe_load(CONFIG_FP.read_text())["etl"]["post_stages"]
-    assert post_stages[0] == "alott_unit_metadata"
+    assert post_stages[0] == "sumeds_link_unit_siblings"

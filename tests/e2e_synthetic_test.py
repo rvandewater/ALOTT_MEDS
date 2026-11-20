@@ -1,7 +1,7 @@
 """End-to-end run of the shipped ETL over a tiny, fully synthetic ALOTT-shaped input.
 
 This distribution is `event_configs.yaml` and `sumeds_rules.yaml` plus the entry-point registrations
-that name them `ALOTT`, and two small unit stages, `alott_unit_keys` and `alott_unit_metadata`.
+that name them `ALOTT`, and one small unit stage, `alott_unit_keys`.
 This test covers the
 ETL: that `meds-extract-run spec=ALOTT` resolves that registration, runs the pipeline over raw tables
 laid out the way the spec expects, and leaves a well-formed MEDS cohort behind. Driving it through the
@@ -329,8 +329,8 @@ def test_e2e_synthetic():
             f"MEDICATION//MAR//{other}//UNK",
         }
         # Codes that differ only in their unit get the code without the unit as their parent, which gets a
-        # row of its own with their shared description and no unit; the `UNK` code (no unit) and the
-        # unchanged codes get none.
+        # row of its own with their shared description and no unit. A code of the same item whose unit was
+        # not recorded (`UNK`) joins them; the unchanged codes get none.
         parents = dict(zip(codes["code"], codes["parent_codes"].to_list(), strict=True))
         for stem, suffixes in {
             f"MEDICATION//START//{other}": ("units", "mL"),
@@ -341,7 +341,7 @@ def test_e2e_synthetic():
                 assert parents[f"{stem}//{suffix}"] == [stem]
             assert units[stem] is None and parents[stem] is None
             assert described[stem] == described[f"{stem}//{suffixes[0]}"]
-        assert parents[f"MEDICATION//MAR//{drug}//Given//UNK"] is None
+        assert parents[f"MEDICATION//MAR//{drug}//Given//UNK"] == [f"MEDICATION//MAR//{drug}//Given"]
         assert parents[f"MEDICATION//START//{drug}"] is None
         assert parents[f"MEDICATION//MAR//{other}//Given"] is None
         # Every event's own dose unit is its code's unit as recorded.

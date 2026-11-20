@@ -189,14 +189,16 @@ known unit, 3 of those are single letters or on codes without values, so none is
 
 MEDS-Extract (0.9 and later) writes `unit` as one String per code: blanks are stripped and empty
 entries dropped, units are otherwise kept as recorded, and the run fails, naming the codes, if a code
-has more than one unit. The spec's first post-stage, `alott_unit_metadata`
-([`src/ALOTT_MEDS/unit_metadata.py`](src/ALOTT_MEDS/unit_metadata.py)), then links unit
-siblings, codes that differ only in their last component, which is their `unit` (one drug given in
-`mg` and in `g`): each gets the code without the unit (its stem) in `parent_codes`, and the stem gets
-a row of its own with the siblings' shared description (if they share one), the parents they all
-share and no `unit`. A stem has no events. It runs before `sumeds_normalize_units`, on the units as
-recorded. In this ETL the siblings are exactly the codes split by
-unit (above); their `UNK` code has no `unit` and so no stem parent. `python -m ALOTT_MEDS.unit_metadata $MEDS_OUTPUT_DIR` runs the same step on an existing build.
+has more than one unit. The spec's first post-stage, suMEDS's
+[`sumeds_link_unit_siblings`](https://github.com/rvandewater/suMEDS/blob/main/docs/unit_siblings.md)
+(with its default options), then links unit siblings, codes that differ only in their last
+component, which is their `unit` (one drug given in `mg` and in `g`): each gets the code without the
+unit (its stem) in `parent_codes`, and the stem gets a row of its own with the siblings' shared
+description (or the same one but for the unit each states, which is left out), the parents they all
+share and no `unit`. A stem has no events. In this ETL the siblings are the codes split by unit
+(above), and a code of the same item whose unit was not recorded (`…//UNK`) joins them. It runs
+before `sumeds_normalize_units`. This shared stage replaced the package's own `alott_unit_metadata`
+(suMEDS 0.6.6); `suMEDS-link-unit-siblings $MEDS_OUTPUT_DIR` runs the same step on an existing build.
 
 What each column means follows the table descriptions on the
 [ALOTT 1.0.0 PhysioNet page](https://physionet.org/content/alott/1.0.0/) and the column names
@@ -244,14 +246,14 @@ Vocabulary work is maintained once, in [suMEDS](https://github.com/rvandewater/S
 than in every ETL. This package ships the rules for it,
 [`src/ALOTT_MEDS/sumeds_rules.yaml`](src/ALOTT_MEDS/sumeds_rules.yaml), registered in suMEDS's
 `sumeds.rules` entry-point group under the same name as the MEDS-Extract spec, `ALOTT`, so
-`--rules ALOTT` works for any suMEDS command. The spec runs them as its last stage, after
-`alott_unit_metadata` and suMEDS's `sumeds_normalize_units`, so that suMEDS sees the final table (and a later `suMEDS-enrich` gives the
+`--rules ALOTT` works for any suMEDS command. The spec runs them as its last stage, after suMEDS's
+`sumeds_link_unit_siblings` and `sumeds_normalize_units`, so that suMEDS sees the final table (and a later `suMEDS-enrich` gives the
 same result):
 
 ```yaml
 etl:
   post_stages:
-    - alott_unit_metadata
+    - sumeds_link_unit_siblings
     - sumeds_normalize_units
     - sumeds_enrich: {rules: ALOTT}
 ```
