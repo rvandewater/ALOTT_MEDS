@@ -461,6 +461,7 @@ agreement with the real release. Never commit raw ALOTT data or MEDS output deri
 ## Breaking changes
 
 ### Unreleased (after 0.1.0)
+
 - **Order end codes use `END`, not `STOP`** ([alignEHR#53](https://github.com/rvandewater/alignEHR/issues/53)):
     `MEDICATION//STOP//<drug>` is now `MEDICATION//END//<drug>`, the spelling all MEDS ETLs move to for the
     two ends of an interval, `<FAMILY>//START//…` and `<FAMILY>//END//…`. Start codes, events and code
@@ -472,7 +473,6 @@ agreement with the real release. Never commit raw ALOTT data or MEDS output deri
     | `MEDICATION//STOP//<drug>` | `MEDICATION//END//<drug>` |
 
     To migrate, rewrite old codes with the regex `^MEDICATION//STOP//` → `MEDICATION//END//`.
-
 
 - **ICD codes name the vocabulary and its edition apart, `ICD//<edition>//<code>`.** Diagnoses
     `DIAGNOSIS//ICD//10//<code>` are now `DIAGNOSIS//ICD//10CM//<code>`, the layout every MEDS ETL of
