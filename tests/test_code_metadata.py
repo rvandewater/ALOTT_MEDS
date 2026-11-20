@@ -8,7 +8,9 @@ resulting `codes.parquet`.
 import re
 from pathlib import Path
 
+import polars as pl
 import yaml
+from dftly import Parser
 
 CONFIG_FP = Path(__file__).parents[1] / "src" / "ALOTT_MEDS" / "event_configs.yaml"
 RESERVED = {"etl", "sources", "_defaults"}
@@ -83,32 +85,64 @@ def test_unit_metadata_comes_from_the_dose_unit_columns():
     }
 
 
-def test_only_codes_flagged_by_the_pre_stage_end_in_their_unit():
-    """Each code with `unit` metadata ends in that same column (or `UNK`) only where the `alott_unit_keys`
-    side table flags it, so that a code with one unit keeps its layout and a code with several gets one per
-    unit."""
+# The unit component: the unit column stripped of surrounding whitespace, `UNK` where missing or blank.
+STRIPPED_OR_UNK = r'(extract /(?s)\S(?:.*\S)?/ from {unit}) ?? "UNK"'
+
+
+def test_codes_with_a_unit_end_in_it():
+    """Each code with `unit` metadata ends in that same column, stripped (or `UNK` where a row records none or
+    a blank one), so a code has one unit by construction."""
     cfg = yaml.safe_load(CONFIG_FP.read_text())
-    table_cols = cfg["emr-datasets/medications"]["_table"]["cols"]
     for table, name, event in _events():
         unit = event.get("_metadata", {}).get("_self", {}).get("unit")
         if unit is None:
             continue
-        suffix = re.search(r"\{\$(_\w+_unit)\}\"$", event["code"])
-        assert suffix, f"{table}/{name}: {event['code']}"
-        assert re.fullmatch(
-            rf"""\(f"//\{{\{unit} \?\? 'UNK'\}}" if \$\w+_unit_in_code else ""\)""",
-            table_cols[suffix.group(1)],
-        ), table_cols[suffix.group(1)]
+        component = re.search(r"//\{\$(_\w+)\}\"$", event["code"])
+        assert component, f"{table}/{name}: {event['code']}"
+        derived = cfg[table]["_table"]["cols"][component.group(1)]
+        assert derived == STRIPPED_OR_UNK.format(unit=unit), f"{table}/{name}: {derived}"
 
 
-def test_the_pre_stage_stages_the_side_tables_the_spec_joins():
-    from ALOTT_MEDS.unit_keys import MAR_TABLE, MEDICATIONS, START_TABLE
+def test_unit_component_is_stripped_and_blank_is_unk():
+    """` mg`, `mg ` and `mg` give one code, as MEDS-Extract compares units stripped when it writes
+    `codes.parquet`; a blank or missing unit gives `UNK`.
 
-    cfg = yaml.safe_load(CONFIG_FP.read_text())
-    assert cfg["etl"]["pre_stages"] == ["alott_unit_keys"]
-    assert set(cfg[MEDICATIONS]["_table"]["joins"]) == {START_TABLE, MAR_TABLE}
+    The action is not a unit and is kept as recorded.
+    """
+    cols = yaml.safe_load(CONFIG_FP.read_text())["emr-datasets/medications"]["_table"]["cols"]
+    units = ["mg", " mg", "mg ", "\tmg\n", "mL / h", "  ", "", None]
+    raw = pl.DataFrame(
+        {
+            "MEDICATION": ["HEPARIN"] * len(units),
+            "MAR_ACTION": [" Given"] * len(units),
+            "HV_DISCRET_DOSE_UNIT": units,
+            "MAR_DOSE_UNIT": units,
+        }
+    ).with_columns(**Parser.to_polars(cols))
+    expected = ["mg", "mg", "mg", "mg", "mL / h", "UNK", "UNK", "UNK"]
+    for name, prefix in (
+        ("medication_start", "MEDICATION//START//HEPARIN//"),
+        ("medication_administration", "MEDICATION//MAR//HEPARIN// Given//"),
+    ):
+        code = _event("emr-datasets/medications", name)["code"]
+        codes = raw.select(**Parser.to_polars({"code": code}))["code"].to_list()
+        assert codes == [prefix + unit for unit in expected], name
+
+
+def _event(table: str, name: str) -> dict:
+    return yaml.safe_load(CONFIG_FP.read_text())[table][name]
+
+
+def test_no_unit_pre_stage():
+    """No stage has to find the codes whose rows mix units: every code ends in its unit."""
+    assert "pre_stages" not in yaml.safe_load(CONFIG_FP.read_text())["etl"]
 
 
 def test_unit_siblings_are_linked_before_suMEDS_enriches():
     post_stages = yaml.safe_load(CONFIG_FP.read_text())["etl"]["post_stages"]
-    assert post_stages[0] == "sumeds_link_unit_siblings"
+    assert post_stages[0] == {
+        "sumeds_link_unit_siblings": {
+            "link_single_units": True,
+            "unknown_unit_prefixes": ["MEDICATION//START//", "MEDICATION//MAR//"],
+        }
+    }
