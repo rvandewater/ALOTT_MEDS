@@ -203,11 +203,10 @@ What each column means follows the table descriptions on the
 in the authors' release code ([Carescape](https://github.com/johnclawrence/Carescape), MIT);
 the descriptions paraphrase them and copy no text.
 
-MEDS-Extract 0.8 attaches `_metadata` only to a code whose expression references a source
-column ([MEDS_extract#166](https://github.com/mmcdermott/MEDS_extract/issues/166)), so the
-three constant codes are written `'ICU_ADMISSION' if $startOffsetDate == $startOffsetDate`.
-The guard tests the event's own time column, which is false only where the time is null, and
-such a row produces no event anyway: the extracted events are unchanged.
+The three constant codes (`ICU_ADMISSION`, `ICU_DISCHARGE`, `TRANSFER`) are plain literals:
+MEDS-Extract 0.8.1 and later attach `_self` metadata to literal codes
+([MEDS_extract#166](https://github.com/mmcdermott/MEDS_extract/issues/166)), and a row whose
+time is null yields no event.
 
 Apart from unit-sibling stems, the ETL writes no `parent_codes`. The only standard vocabulary in the EMR tables is
 ICD-10-CM, and diagnoses cannot carry metadata (below), so their ICD-10-CM parents come from

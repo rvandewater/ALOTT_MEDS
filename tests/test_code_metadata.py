@@ -51,20 +51,22 @@ def test_diagnosis_blocks_carry_no_metadata():
             assert "_metadata" not in event, f"{table}/{name}"
 
 
-def test_constant_codes_are_guarded_by_their_own_time_column():
-    """A constant code only gets a component (and so a description) through its `if $t == $t` guard, and the
-    guard must test the event's own time column so that it drops no row that had a time."""
-    guarded = 0
+def test_constant_codes_are_plain_literals():
+    """The three constant codes are plain literals (no `if $t == $t` guard): MEDS-Extract >= 0.8.1 attaches
+    `_self` metadata to literal codes (mmcdermott/MEDS_extract#166), so each still carries its description."""
+    literals = 0
     for table, name, event in _events():
         code = event["code"]
         if "{" in code:
             continue
-        m = re.fullmatch(r"'([A-Z_]+)' if \$(\w+) == \$(\w+)", code)
-        assert m, f"{table}/{name}: constant code without a guard: {code}"
-        assert m.group(2) == m.group(3), code
-        assert event["time"].startswith(f"${m.group(2)}::"), f"{table}/{name}: guard is not the time column"
-        guarded += 1
-    assert guarded == 3
+        assert re.fullmatch(r"'([A-Z_]+)'", code), (
+            f"{table}/{name}: constant code is not a plain literal: {code}"
+        )
+        assert event["_metadata"]["_self"]["description"], (
+            f"{table}/{name}: constant code without a description"
+        )
+        literals += 1
+    assert literals == 3
 
 
 def test_unit_metadata_comes_from_the_dose_unit_columns():

@@ -213,20 +213,17 @@ emr-datasets/flowsheet:
 emr-datasets/icu:
   # The release keeps only the ICU stay's times, not which unit it was.
   #
-  # These three codes are constants, but MEDS-Extract 0.8 attaches `_metadata` only to a code
-  # whose expression references a source column (mmcdermott/MEDS_extract#166), so each is
-  # guarded by its own time column: `if $t == $t` is false only where `$t` is null, and such
-  # a row produces no event anyway. The guard changes no event; it gives the code a component
-  # for its description to attach to.
+  # These three codes are plain literals: MEDS-Extract (>= 0.8.1, mmcdermott/MEDS_extract#166)
+  # attaches `_self` metadata to literal codes, and a row whose time is null yields no event.
   icu_admission:
-    code: "'ICU_ADMISSION' if $startOffsetDate == $startOffsetDate"
+    code: "'ICU_ADMISSION'"
     time: '$startOffsetDate::"%Y-%m-%d %H:%M:%S"'
     hadm_id: $aCSN
     _metadata:
       _self:
         description: "'Start of an ICU stay; the release does not record the unit (ALOTT icu.startOffsetDate)'"
   icu_discharge:
-    code: "'ICU_DISCHARGE' if $endOffsetDate == $endOffsetDate"
+    code: "'ICU_DISCHARGE'"
     time: '$endOffsetDate::"%Y-%m-%d %H:%M:%S"'
     hadm_id: $aCSN
     _metadata:
@@ -235,9 +232,9 @@ emr-datasets/icu:
 
 emr-datasets/location:
   # Bed-level movement. The release keeps only each stay's start and end, not the department,
-  # room or bed, so a transfer is just the moment the patient moved. Guarded like the ICU codes.
+  # room or bed, so a transfer is just the moment the patient moved. A literal, like the ICU codes.
   transfer:
-    code: "'TRANSFER' if $startOffsetDate == $startOffsetDate"
+    code: "'TRANSFER'"
     time: '$startOffsetDate::"%Y-%m-%d %H:%M:%S"'
     hadm_id: $aCSN
     _metadata:
