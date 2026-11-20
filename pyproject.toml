@@ -38,7 +38,7 @@ classifiers = [
 # duplicating those pins here would only create drift.
 dependencies = [
     "meds-extract[download]>=0.9.0,<0.10",
-    "sumeds>=0.6.6,<0.7",
+    "sumeds>=0.6.7,<0.7",
 ]
 
 [dependency-groups]
