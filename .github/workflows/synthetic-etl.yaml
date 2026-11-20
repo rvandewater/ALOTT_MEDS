@@ -48,7 +48,11 @@ jobs:
         # the shipped spec with the same MEDS-Extract minor version as the ETL. The extraction runs
         # that spec, suMEDS enrichment stage included, with this project's locked MEDS-Extract.
         run: |
+          # MESSY-synth parses the spec with its own MEDS-Extract, which must read
+          # `etl.cleanup_intermediates` (0.9.2+; earlier releases reject it). MESSY_synth 0.1.1
+          # allows any 0.8-0.9, so the floor keeps a cached tool environment off older releases.
           uvx --python ${{ matrix.python-version }} --from "MESSY_synth==0.1.1" \
+            --with "MEDS-extract>=0.9.2,<0.10" \
             MESSY-synth ./src/ALOTT_MEDS/event_configs.yaml -o raw_synthetic/ --explain
           uv run --locked meds-extract-run spec=ALOTT output_dir=./ALOTT_meds_synth \
             input_dir=raw_synthetic do_download=false
