@@ -146,7 +146,7 @@ unit keeps its rows without a unit, as in 0.1.0; its `unit` is the one its other
 | -------------------------------------------------- | ------------ | --------------------- | -------------------------------------------------------------------------------------- |
 | `HOSPITAL_ADMISSION//<admission type>//<source>`   | admission    | admission             | reason for visit in `text_value`                                                       |
 | `HOSPITAL_DISCHARGE//<destination>`                | admission    | discharge             |                                                                                        |
-| `DIAGNOSIS//ICD//10//<ICD-10-CM code>`             | admission    | discharge             | diagnosis text; `diagnosis_rank` `PRIMARY` or `SECONDARY`                              |
+| `DIAGNOSIS//ICD//10CM//<ICD-10-CM code>`           | admission    | discharge             | diagnosis text; `diagnosis_rank` `PRIMARY` or `SECONDARY`                              |
 | `<FIELD>//<value>`                                 | demographics | static                | `FIELD` is `GENDER`, `MARITAL_STATUS`, `RACE`, `ETHNICITY`, `LANGUAGE` or `BLOOD_TYPE` |
 | `ALLERGY//<allergen>`                              | allergy      | static                | reaction in `text_value`                                                               |
 | `FLOWSHEET//<FLO_MEAS_ID>`                         | flowsheet    | recorded              | reading or score; `flow_type`                                                          |
@@ -230,14 +230,14 @@ one.
 
 ### Diagnoses
 
-The primary and secondary ICD-10 codes on each visit become `DIAGNOSIS//ICD//10//<code>`
+The primary and secondary ICD-10 codes on each visit become `DIAGNOSIS//ICD//10CM//<code>`
 events at discharge time, with `diagnosis_rank` set to `PRIMARY` or `SECONDARY`. About 4% of
 cells list up to four codes separated by a comma and a space; each code becomes its own event, carrying the
 cell's full diagnosis text. No `_metadata` is attached, so diagnosis codes have neither a
 `description` nor `parent_codes`: each list position of each column is its own code template,
 one code occurs under several of them (as primary and as secondary, at different positions),
 and MEDS-Extract 0.8 rejects a code produced by two metadata-carrying code templates.
-The codes are dotted ICD-10-CM codes, so `DIAGNOSIS//ICD//10//<code>` maps to
+The codes are dotted ICD-10-CM codes, so `DIAGNOSIS//ICD//10CM//<code>` maps to
 `ICD10CM//<code>` directly, and suMEDS adds their titles and parents (below).
 
 ### Enriching code metadata with suMEDS
@@ -317,13 +317,13 @@ meds-extract-run spec=ALOTT output_dir=$MEDS_OUTPUT_DIR "overrides=['++stage_cfg
 Diagnosis codes are validated against suMEDS's versioned ontology data (sumeds-ontologies,
 pinned release), built from the CDC/NCHS ICD-10-CM files. The rules add:
 
-- `alott-icd10cm-diagnoses`: each `DIAGNOSIS//ICD//10//<code>` with the dotted ICD-10-CM shape
+- `alott-icd10cm-diagnoses`: each `DIAGNOSIS//ICD//10CM//<code>` with the dotted ICD-10-CM shape
     that is a valid ICD-10-CM code gets the official title as its `description`, and
     `ICD10CM//<code>` followed by its ICD-10-CM ancestors as `parent_codes`, with the title of
     each in `parent_names`.
 - `alott-diagnosis-parents-in-dataset`: same-dataset parents. A diagnosis code also gets the
     nearest ICD-10-CM ancestor that is itself an ALOTT diagnosis code, e.g.
-    `DIAGNOSIS//ICD//10//I50.2` for `DIAGNOSIS//ICD//10//I50.23`.
+    `DIAGNOSIS//ICD//10CM//I50.2` for `DIAGNOSIS//ICD//10CM//I50.23`.
 
 suMEDS fills only missing descriptions, never removes or rewrites existing metadata, and writes
 parents as `VOCABULARY//CODE`. The other code families keep the descriptions the spec gives them
@@ -464,8 +464,13 @@ from it.
 
 ## Breaking changes
 
-None yet. Each release that changes the output (codes, columns, values) gets an entry here, newest
-first, with the version it applies from and how to migrate (an old → new mapping or regex).
+### Unreleased (after 0.1.0)
+
+- **ICD codes name the vocabulary and its edition apart, `ICD//<edition>//<code>`.** Diagnoses
+    `DIAGNOSIS//ICD//10//<code>` are now `DIAGNOSIS//ICD//10CM//<code>`, the layout every MEDS ETL of
+    this family uses for ICD (`ICD//10CM`, `ICD//9CM`, `ICD//10PCS`, `ICD//10GM`, `ICD//10CN`). The code
+    after the edition is unchanged (dotted, as ALOTT records it), and so is its `ICD10CM//<code>` parent.
+    To migrate, rename codes with the regex `^DIAGNOSIS//ICD//10//` → `DIAGNOSIS//ICD//10CM//`.
 
 ## Citation
 

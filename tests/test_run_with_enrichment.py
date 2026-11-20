@@ -20,7 +20,7 @@ from e2e_synthetic_test import SPEC, write_synthetic_input
 from sumeds.testing import synthetic_title
 from sumeds.testing.contracts import EnrichmentContract
 
-DIAGNOSIS = "DIAGNOSIS//ICD//10//I50.23"
+DIAGNOSIS = "DIAGNOSIS//ICD//10CM//I50.23"
 
 
 @pytest.fixture(scope="session")
@@ -41,8 +41,8 @@ class TestEnrichment(EnrichmentContract):
     expected_parents: ClassVar = {DIAGNOSIS: ["ICD10CM//I50.23", "ICD10CM//I50.2", "ICD10CM//I50"]}
     expected_descriptions: ClassVar = {
         DIAGNOSIS: synthetic_title("ICD10CM", "I50.23"),
-        "DIAGNOSIS//ICD//10//I10": None,
+        "DIAGNOSIS//ICD//10CM//I10": None,
         "FLOWSHEET//8": "Pulse",
     }
     # A code that is not in the vocabulary, and the non-diagnosis codes, are left alone.
-    unenriched_codes: ClassVar = ["DIAGNOSIS//ICD//10//I10", "FLOWSHEET//8"]
+    unenriched_codes: ClassVar = ["DIAGNOSIS//ICD//10CM//I10", "FLOWSHEET//8"]
