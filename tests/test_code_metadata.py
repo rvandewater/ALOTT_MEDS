@@ -8,9 +8,8 @@ resulting `codes.parquet`.
 import re
 from pathlib import Path
 
-import polars as pl
 import yaml
-from dftly import Parser
+from sumeds.testing.contracts import UnitComponentContract
 
 CONFIG_FP = Path(__file__).parents[1] / "src" / "ALOTT_MEDS" / "event_configs.yaml"
 RESERVED = {"etl", "sources", "_defaults"}
@@ -103,34 +102,17 @@ def test_codes_with_a_unit_end_in_it():
         assert derived == STRIPPED_OR_UNK.format(unit=unit), f"{table}/{name}: {derived}"
 
 
-def test_unit_component_is_stripped_and_blank_is_unk():
-    """` mg`, `mg ` and `mg` give one code, as MEDS-Extract compares units stripped when it writes
-    `codes.parquet`; a blank or missing unit gives `UNK`.
+class TestUnitComponents(UnitComponentContract):
+    """Each code that ends in a unit, evaluated with dftly as MEDS-Extract does (suMEDS's shared contract).
 
-    The action is not a unit and is kept as recorded.
+    ` mg`, `mg ` and `mg` give one code, and a blank or missing unit gives `UNK`.
     """
-    cols = yaml.safe_load(CONFIG_FP.read_text())["emr-datasets/medications"]["_table"]["cols"]
-    units = ["mg", " mg", "mg ", "\tmg\n", "mL / h", "  ", "", None]
-    raw = pl.DataFrame(
-        {
-            "MEDICATION": ["HEPARIN"] * len(units),
-            "MAR_ACTION": [" Given"] * len(units),
-            "HV_DISCRET_DOSE_UNIT": units,
-            "MAR_DOSE_UNIT": units,
-        }
-    ).with_columns(**Parser.to_polars(cols))
-    expected = ["mg", "mg", "mg", "mg", "mL / h", "UNK", "UNK", "UNK"]
-    for name, prefix in (
-        ("medication_start", "MEDICATION//START//HEPARIN//"),
-        ("medication_administration", "MEDICATION//MAR//HEPARIN// Given//"),
-    ):
-        code = _event("emr-datasets/medications", name)["code"]
-        codes = raw.select(**Parser.to_polars({"code": code}))["code"].to_list()
-        assert codes == [prefix + unit for unit in expected], name
 
-
-def _event(table: str, name: str) -> dict:
-    return yaml.safe_load(CONFIG_FP.read_text())[table][name]
+    spec = "ALOTT"
+    expected_unit_events = (
+        "emr-datasets/medications/medication_start",
+        "emr-datasets/medications/medication_administration",
+    )
 
 
 def test_no_unit_pre_stage():
