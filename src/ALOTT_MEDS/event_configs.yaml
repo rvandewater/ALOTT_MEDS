@@ -285,8 +285,11 @@ emr-datasets/medications:
         description: >-
           f"Medication order start: {$MEDICATION} (ALOTT medications.MEDICATION)"
         unit: $HV_DISCRET_DOSE_UNIT
+  # An order is two codes, `MEDICATION//START//...` and `MEDICATION//END//...` (alignEHR#53). Both
+  # name the drug; only a start can end in its dose unit (see above). Drop that unit and swap START
+  # for END to pair them.
   medication_stop:
-    code: f"MEDICATION//STOP//{$MEDICATION}"
+    code: f"MEDICATION//END//{$MEDICATION}"
     time: '$endOffsetDate::"%Y-%m-%d %H:%M:%S" @ 23:59:59'
     hadm_id: $aCSN
     _metadata:

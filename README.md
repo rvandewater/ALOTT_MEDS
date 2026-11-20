@@ -117,7 +117,7 @@ null and `hadm_id` stays `Int64`.
 
 Every code is `FAMILY//...`, from general to specific, so a prefix selects a group (all
 labs, one lab panel, one drug). Where a table records both an order and its outcome, the
-second component says which: `ORDERED` or `RESULT`, `START` or `STOP`, or `MAR`
+second component says which: `ORDERED` or `RESULT`, `START` or `END`, or `MAR`
 (Medication Administration Record: the bedside log of each dose given, held or refused).
 `UNK` stands for a null component that must not drop the row (see
 [Null handling](#null-handling)).
@@ -134,7 +134,7 @@ unchanged. Codes with one unit are not renamed, because that would break referen
 nothing. Which codes are split is read from the data on every run, by the pre-stage
 `alott_unit_keys` ([`src/ALOTT_MEDS/unit_keys.py`](src/ALOTT_MEDS/unit_keys.py)), so the spec names
 no drug: it stages two side tables, `alott_start_unit_in_code` and `alott_mar_unit_in_code`, that
-the medications block joins. `MEDICATION//STOP` codes have no dose and are unchanged.
+the medications block joins. `MEDICATION//END` codes have no dose and are unchanged.
 
 A split code's rows without a unit get `//UNK` rather than staying on the code without the unit:
 that code is the parent of the per-unit codes, standing for the drug in any unit, and doses of
@@ -153,7 +153,7 @@ unit keeps its rows without a unit, as in 0.1.0; its `unit` is the one its other
 | `ICU_ADMISSION`, `ICU_DISCHARGE`                   | icu          | start, end            |                                                                                        |
 | `TRANSFER`                                         | location     | start                 |                                                                                        |
 | `MEDICATION//START//<drug>[//<dose unit>]`         | medications  | start date, 23:59:59  | ordered dose (raw text if a range); `dose_unit`, `frequency`                           |
-| `MEDICATION//STOP//<drug>`                         | medications  | end date, 23:59:59    |                                                                                        |
+| `MEDICATION//END//<drug>`                          | medications  | end date, 23:59:59    |                                                                                        |
 | `MEDICATION//MAR//<drug>//<action>[//<dose unit>]` | medications  | administration        | given dose; `dose_unit`, `route`                                                       |
 | `LAB//ORDERED//<PROC_ID>`                          | labs         | order date, 23:59:59  |                                                                                        |
 | `LAB//RESULT//<PROC_ID>//<component>`              | labs         | result date, 23:59:59 | result; `order_status`                                                                 |
@@ -344,7 +344,7 @@ reads as `pl.Map` and Polars 1 as a list of `key`/`value` structs. The plain ETL
     their score. The raw string goes to `text_value` unless it is just the number. Epic's
     nonnumeric sentinel `9999999` never becomes a numeric value.
 - **Medications:** each row of the release is one administration and repeats its order's
-    start and end, so an order yields one `START`, one `STOP` and one `MAR` event per
+    start and end, so an order yields one `START`, one `END` and one `MAR` event per
     administration.
 - **Orders** hold every order type except labs; roughly half carry a single result.
 - **Birth and death:** the release has no birth date, age or death time, so there are no
@@ -457,6 +457,22 @@ check the soft failure, its `suMEDS-enrich` retry and `strict`.
 [`tests/test_sumeds_rules.py`](tests/test_sumeds_rules.py) checks that the rules are registered as
 `ALOTT` and match the diagnosis codes the spec writes. These check the spec's mechanics, not its
 agreement with the real release. Never commit raw ALOTT data or MEDS output derived from it.
+
+## Breaking changes
+
+### Unreleased
+
+- **Order end codes use `END`, not `STOP`** ([alignEHR#53](https://github.com/rvandewater/alignEHR/issues/53)):
+    `MEDICATION//STOP//<drug>` is now `MEDICATION//END//<drug>`, the spelling all MEDS ETLs move to for the
+    two ends of an interval, `<FAMILY>//START//…` and `<FAMILY>//END//…`. Start codes, events and code
+    metadata are otherwise unchanged. A start code can end in its dose unit (see [Codes](#codes)); to pair a
+    start with its end, drop that unit (the code's parent in `codes.parquet`) and swap `START` for `END`.
+
+    | Old                        | New                       |
+    | -------------------------- | ------------------------- |
+    | `MEDICATION//STOP//<drug>` | `MEDICATION//END//<drug>` |
+
+    To migrate, rewrite old codes with the regex `^MEDICATION//STOP//` → `MEDICATION//END//`.
 
 ## Citation
 
