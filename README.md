@@ -12,7 +12,7 @@ CODECOV_TOKEN_PLACEHOLDER with the repo's Codecov badge token and zenodo.XXXXXXX
 [![license](https://img.shields.io/badge/License-MIT-green.svg?labelColor=gray)](https://github.com/rvandewater/ALOTT_MEDS#license)
 [![PRs](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/rvandewater/ALOTT_MEDS/pulls)
 [![contributors](https://img.shields.io/github/contributors/rvandewater/ALOTT_MEDS.svg)](https://github.com/rvandewater/ALOTT_MEDS/graphs/contributors)
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23698074.svg)](https://doi.org/10.5281/zenodo.23698074)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23698073.svg)](https://doi.org/10.5281/zenodo.23698073)
 
 ALOTT (ALarms, Outcomes Telemetry with Timing) is a pilot bedside-EMR database from two
 hospitals, collected to support algorithms that predict emergency response team events. It
@@ -440,7 +440,7 @@ MEDS-Extract, suMEDS or polars upgrade can also move the output, so check it wit
 
 ```bash
 uv sync --group dev
-uv run pytest tests/
+uv run pytest tests/ src/ --doctest-modules
 uv run pre-commit run --all-files
 ```
 
@@ -492,14 +492,15 @@ Please cite the following original dataset when using ALOTT:
 Also cite the ETL framework used to extract the dataset:
 
 ```bibtex
-@software{robin_van_de_water_2026_23698074,
-  author       = {Robin van de Water},
-  title        = {rvandewater/ALOTT\_MEDS: Zenodo release},
-  month        = oct,
+@software{van_de_water_2026_alott_meds,
+  author       = {van de Water, Robin},
+  title        = {ALOTT MEDS ETL},
+  version      = {0.1.0},
+  month        = nov,
   year         = 2026,
   publisher    = {Zenodo},
-  doi          = {10.5281/zenodo.23698074},
-  url          = {https://doi.org/10.5281/zenodo.23698074},
+  doi          = {10.5281/zenodo.23698073},
+  url          = {https://doi.org/10.5281/zenodo.23698073},
 }
 ```
 
