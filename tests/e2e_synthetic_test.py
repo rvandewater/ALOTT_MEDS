@@ -1,9 +1,10 @@
 """End-to-end run of the shipped ETL over a tiny, fully synthetic ALOTT-shaped input.
 
-This distribution ships no Python — it is `event_configs.yaml` and `sumeds_rules.yaml` plus the
-entry-point registrations that name them `ALOTT`. This test covers the ETL: that
-`meds-extract-run spec=ALOTT` resolves that registration, runs the pipeline over raw tables laid out
-the way the spec expects, and leaves a well-formed MEDS cohort behind. Driving it through the
+This distribution is `event_configs.yaml` and `sumeds_rules.yaml` plus the entry-point registrations
+that name them `ALOTT`, and two small unit stages, `alott_unit_keys` and `alott_unit_metadata`.
+This test covers the
+ETL: that `meds-extract-run spec=ALOTT` resolves that registration, runs the pipeline over raw tables
+laid out the way the spec expects, and leaves a well-formed MEDS cohort behind. Driving it through the
 registered name rather than a path is deliberate: it makes this test cover the registration too. It
 leaves out the spec's suMEDS enrichment stage (`skip_stages=[sumeds_enrich]`), which would otherwise
 fetch ontology packs; `test_run_with_enrichment.py` runs it over the same input, offline.
@@ -101,17 +102,20 @@ def write_synthetic_input(root: Path) -> None:
         },
         "medications": {
             **ids,
-            "MEDICATION": ["FUROSEMIDE 40 MG TAB"] * n,
+            # The second drug is ordered in two units.
+            "MEDICATION": [*["FUROSEMIDE 40 MG TAB"] * (n - 2), *["HEPARIN 5000 UNIT/ML INJ"] * 2],
             # Order start and end are datetimes in form but always midnight in the release.
             "orderingOffsetDate": at("00:00:00"),
             "startOffsetDate": at("00:00:00"),
             "endOffsetDate": [None, *at("00:00:00")[1:]],
             "ORDERING_MODE": ["Inpatient"] * n,
             "HV_DISCRETE_DOSE": ["40", "1-2"] * (n // 2),
-            "HV_DISCRET_DOSE_UNIT": ["mg"] * n,
+            # One drug is ordered in one unit (one order records none), the other in two; the first is
+            # given in two units, both with and without an action, and some doses record none.
+            "HV_DISCRET_DOSE_UNIT": [*["mg"] * (n - 3), None, "units", "mL"],
             "FREQUENCY": ["DAILY"] * n,
             "MAR_DOSE": ["40"] * n,
-            "MAR_DOSE_UNIT": ["mg"] * n,
+            "MAR_DOSE_UNIT": ["mg", "g", "mg", "mg", None, "mg", "g", "mg", "units", None],
             "OffsetMAR_TAKEN_TIME": at("11:05:00"),
             "MAR_ACTION": ["Given", None] * (n // 2),
             "MAR_ROUTE": ["Oral"] * n,
@@ -220,7 +224,7 @@ def test_e2e_synthetic():
         assert dated.height and (dated["time"].dt.strftime("%H:%M:%S") == "23:59:59").all()
         mar = data.filter(pl.col("code").str.starts_with("MEDICATION//MAR//"))
         assert mar.height == N_SUBJECTS and (mar["time"].dt.strftime("%H:%M") == "11:05").all()
-        assert mar["code"].str.ends_with("//UNK").sum() == N_SUBJECTS // 2
+        assert (mar["code"].str.split("//").list.get(3) == "UNK").sum() == N_SUBJECTS // 2
 
         # Each code in a listed diagnosis cell is its own event.
         primary = data.filter(pl.col("diagnosis_rank") == "PRIMARY")
@@ -261,7 +265,14 @@ def test_e2e_synthetic():
         codes_tbl = pq.read_table(metadata / "codes.parquet")
         CodeMetadataSchema.validate(codes_tbl)
         codes = pl.from_arrow(codes_tbl)
-        assert set(data["code"].unique()) == set(codes["code"])
+        # The only codes without events are the stems of codes that differ only in their unit (below).
+        stems = set(codes["code"]) - set(data["code"].unique())
+        assert stems == {
+            "MEDICATION//START//HEPARIN 5000 UNIT/ML INJ",
+            "MEDICATION//MAR//FUROSEMIDE 40 MG TAB//Given",
+            "MEDICATION//MAR//FUROSEMIDE 40 MG TAB//UNK",
+        }
+        assert set(data["code"].unique()) <= set(codes["code"])
         undescribed = codes.filter(pl.col("description").is_null())["code"]
         assert undescribed.str.starts_with("DIAGNOSIS//").all(), undescribed.to_list()
         described = dict(zip(codes["code"], codes["description"], strict=True))
@@ -270,7 +281,7 @@ def test_e2e_synthetic():
             "Hospital admission; admission type EMERGENCY (ALOTT admission.Admission_Type), "
             "admitted from UNK (admission.Admit_Source)"
         )
-        assert described["MEDICATION//MAR//FUROSEMIDE 40 MG TAB//Given"].startswith(
+        assert described["MEDICATION//MAR//FUROSEMIDE 40 MG TAB//Given//mg"].startswith(
             "Medication administration record (MAR) entry: FUROSEMIDE 40 MG TAB"
         )
         assert described["TRANSFER"].startswith("Start of a bed stay")
@@ -278,11 +289,61 @@ def test_e2e_synthetic():
         assert described["FLOWSHEET//8"] == "Pulse"
         assert described["LAB//RESULT//101//SODIUM"] == "BASIC METABOLIC PANEL - SODIUM"
 
-        # Medication codes carry their dose's recorded unit as `unit` metadata (a list, as MEDS-Extract
-        # writes every other `_metadata` column); the codes themselves are unchanged. The release
-        # records no unit for flowsheets, labs or orders, so theirs is empty.
+        # Medication codes carry their dose's recorded unit as `unit` metadata, one String per code, as
+        # MEDS-Extract writes it. Only the codes whose rows record more than one unit end in it (`UNK` on
+        # their rows that record none), as the `alott_unit_keys` pre-stage finds; every other code is as
+        # before. The release records no unit for flowsheets, labs or orders, so theirs is null.
+        # suMEDS's `sumeds_normalize_units` then writes `unit` in UCUM (`units` -> `{units}`) and keeps the
+        # spelling as recorded in `unit_source_value`; the code keeps its name.
+        assert codes.schema["unit"] == pl.String
         units = dict(zip(codes["code"], codes["unit"].to_list(), strict=True))
-        assert units["MEDICATION//START//FUROSEMIDE 40 MG TAB"] == ["mg"]
-        assert units["MEDICATION//MAR//FUROSEMIDE 40 MG TAB//Given"] == ["mg"]
-        assert not units["FLOWSHEET//8"]
-        assert not units["LAB//RESULT//101//SODIUM"]
+        recorded = dict(zip(codes["code"], codes["unit_source_value"].to_list(), strict=True))
+        drug, other = "FUROSEMIDE 40 MG TAB", "HEPARIN 5000 UNIT/ML INJ"
+        assert units[f"MEDICATION//START//{drug}"] == "mg"  # one unit: unchanged, a row without one too
+        assert units[f"MEDICATION//START//{other}//units"] == "{units}"
+        assert recorded[f"MEDICATION//START//{other}//units"] == "units"
+        assert units[f"MEDICATION//START//{other}//mL"] == "mL"
+        assert units[f"MEDICATION//MAR//{drug}//Given//mg"] == "mg"
+        assert units[f"MEDICATION//MAR//{drug}//Given//g"] == "g"
+        assert units[f"MEDICATION//MAR//{drug}//Given//UNK"] is None
+        assert units[f"MEDICATION//MAR//{drug}//UNK//mg"] == "mg"
+        assert units[f"MEDICATION//MAR//{drug}//UNK//g"] == "g"
+        assert units[f"MEDICATION//MAR//{other}//Given"] == "{units}"
+        assert recorded[f"MEDICATION//MAR//{other}//Given"] == "units"
+        assert units[f"MEDICATION//MAR//{other}//UNK"] is None
+        assert units["FLOWSHEET//8"] is None
+        assert units["LAB//RESULT//101//SODIUM"] is None
+        medication = {
+            c for c in data["code"].unique() if c.startswith(("MEDICATION//START", "MEDICATION//MAR"))
+        }
+        assert medication == {
+            f"MEDICATION//START//{drug}",
+            f"MEDICATION//START//{other}//units",
+            f"MEDICATION//START//{other}//mL",
+            f"MEDICATION//MAR//{drug}//Given//mg",
+            f"MEDICATION//MAR//{drug}//Given//g",
+            f"MEDICATION//MAR//{drug}//Given//UNK",
+            f"MEDICATION//MAR//{drug}//UNK//mg",
+            f"MEDICATION//MAR//{drug}//UNK//g",
+            f"MEDICATION//MAR//{other}//Given",
+            f"MEDICATION//MAR//{other}//UNK",
+        }
+        # Codes that differ only in their unit get the code without the unit as their parent, which gets a
+        # row of its own with their shared description and no unit; the `UNK` code (no unit) and the
+        # unchanged codes get none.
+        parents = dict(zip(codes["code"], codes["parent_codes"].to_list(), strict=True))
+        for stem, suffixes in {
+            f"MEDICATION//START//{other}": ("units", "mL"),
+            f"MEDICATION//MAR//{drug}//Given": ("mg", "g"),
+            f"MEDICATION//MAR//{drug}//UNK": ("mg", "g"),
+        }.items():
+            for suffix in suffixes:
+                assert parents[f"{stem}//{suffix}"] == [stem]
+            assert units[stem] is None and parents[stem] is None
+            assert described[stem] == described[f"{stem}//{suffixes[0]}"]
+        assert parents[f"MEDICATION//MAR//{drug}//Given//UNK"] is None
+        assert parents[f"MEDICATION//START//{drug}"] is None
+        assert parents[f"MEDICATION//MAR//{other}//Given"] is None
+        # Every event's own dose unit is its code's unit as recorded.
+        doses = data.filter(pl.col("dose_unit").is_not_null()).join(codes, on="code")
+        assert doses.height and (doses["dose_unit"] == doses["unit_source_value"]).all()

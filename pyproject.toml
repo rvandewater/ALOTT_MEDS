@@ -20,10 +20,12 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
-# This package ships no Python: the whole ETL is `event_configs.yaml`, run by
-# MEDS-Extract's own `meds-extract-run`. 0.8.1 is the first MEDS-Extract that runs the extension
-# stages a spec declares (`etl.post_stages`) and writes the `etl:` descriptors and extension-column
-# categories into `metadata/dataset.json`. It is capped below the next minor because its 0.x
+# The whole ETL is `event_configs.yaml`, run by MEDS-Extract's own `meds-extract-run`; the only
+# Python is two small unit stages (`alott_unit_keys`, `alott_unit_metadata`). 0.9.0 is the first
+# MEDS-Extract that writes `unit` in `metadata/codes.parquet` as one String per code (stripped, blanks
+# dropped, several distinct units on a code an error; MEDS_extract#336); 0.8.1 was the first that
+# runs the extension stages a spec declares (`etl.pre_stages`, `etl.post_stages`) and writes the
+# `etl:` descriptors and extension-column categories into `metadata/dataset.json`. It is capped below the next minor because its 0.x
 # minors are breaking (MESSY syntax, runner CLI), so raise it deliberately when migrating. Its
 # `[download]` extra adds `meds-extract-download`, which the runner spawns to stage the raw data
 # from PhysioNet. suMEDS 0.6.2 registers the `sumeds_enrich` stage the spec declares, which
@@ -33,8 +35,8 @@ classifiers = [
 # MEDS-transforms, polars and hydra all arrive through these two at the versions they fence;
 # duplicating those pins here would only create drift.
 dependencies = [
-    "meds-extract[download]>=0.8.1,<0.9",
-    "sumeds>=0.6.2,<0.7",
+    "meds-extract[download]>=0.9.0,<0.10",
+    "sumeds>=0.6.5,<0.7",
 ]
 
 [dependency-groups]
@@ -51,6 +53,14 @@ dev = [
 # the whole ETL.
 [project.entry-points."MEDS_extract.pipelines"]
 ALOTT = "ALOTT_MEDS:event_configs.yaml"
+
+# Registers the two unit stages the spec declares: the `alott_unit_keys` pre-stage, which finds the
+# medication codes whose rows have more than one dose unit (those codes end in the unit), and the
+# `alott_unit_metadata` post-stage, which links codes in `metadata/codes.parquet` that differ only in
+# their unit to the code without it, through `parent_codes`.
+[project.entry-points."MEDS_transforms.stages"]
+alott_unit_metadata = "ALOTT_MEDS.unit_metadata:main"
+alott_unit_keys = "ALOTT_MEDS.unit_keys:main"
 
 # Registers the suMEDS rules under the same name, so the spec's `sumeds_enrich` stage and
 # `--rules ALOTT` find them.
