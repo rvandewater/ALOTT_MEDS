@@ -69,6 +69,15 @@ meds-extract-run spec=ALOTT output_dir=$MEDS_OUTPUT_DIR do_download=false input_
 
 Run `meds-extract-run --help` and `suMEDS-enrich --help` for the full set of arguments.
 
+Intermediate stage outputs are deleted after a successful run, by default: the spec sets
+MEDS-Extract's `etl.cleanup_intermediates: true`, so a finished `$MEDS_OUTPUT_DIR` holds only `data/`,
+`metadata/`, `.logs/` and `.meds_extract_run/`. A failed run keeps them, so the same command resumes
+where it stopped, and the same command on a finished output still does nothing. To keep them (to look
+at a stage's output; `$MEDS_OUTPUT_DIR/.logs/pipeline.log` keeps the stage logs either way), add
+`"overrides=['cleanup_intermediates=false']"`. Cleanup never deletes raw data: a download into the
+default `$MEDS_OUTPUT_DIR/.meds_extract_run/raw_input` stays, and `download_dest_dir=` elsewhere lets other
+output directories reuse it.
+
 ## Configuration
 
 The whole pipeline is one file,
@@ -457,6 +466,17 @@ check the soft failure, its `suMEDS-enrich` retry and `strict`.
 [`tests/test_sumeds_rules.py`](tests/test_sumeds_rules.py) checks that the rules are registered as
 `ALOTT` and match the diagnosis codes the spec writes. These check the spec's mechanics, not its
 agreement with the real release. Never commit raw ALOTT data or MEDS output derived from it.
+
+## Breaking changes
+
+### Unreleased
+
+- **Intermediate stage outputs are no longer kept.** Up to 0.1.0, a run left each stage's output in
+    `<output_dir>/<stage>/` (`convert_to_parquet/`, `convert_to_MEDS_events/`, `alott_unit_keys/`, `sumeds_enrich/`, …). The spec now sets MEDS-Extract's
+    `etl.cleanup_intermediates: true`, so a successful run deletes those directories and keeps only
+    `data/`, `metadata/`, `.logs/` and `.meds_extract_run/`. The MEDS data and metadata are
+    unchanged. To migrate, add `"overrides=['cleanup_intermediates=false']"` to `meds-extract-run`
+    wherever you read a stage directory after the run.
 
 ## Citation
 
