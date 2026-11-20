@@ -124,8 +124,10 @@ second component says which: `ORDERED` or `RESULT`, `START` or `END`, or `MAR`
 
 A code has one unit. Start and administration codes always end in the dose unit as recorded
 (`HV_DISCRET_DOSE_UNIT`, `MAR_DOSE_UNIT`): `MEDICATION//START//<drug>//<dose unit>` and
-`MEDICATION//MAR//<drug>//<action>//<dose unit>`, with `UNK` for a row that records none, as `UNK`
-marks a missing component everywhere else in this ETL. A code then has one unit by construction,
+`MEDICATION//MAR//<drug>//<action>//<dose unit>`. The unit is stripped of surrounding whitespace, and
+a row that records none or a blank one gets `UNK`, as `UNK` marks a missing component everywhere else
+in this ETL; this matches how MEDS-Extract compares units when it writes `unit` (stripped, blanks
+dropped), so ` mg` and `mg` give one code. The action is kept as recorded. A code then has one unit by construction,
 whatever units a drug is ordered or given in, and the spec needs no stage of its own to find the
 drugs that mix units. Where a drug's starts (or its administrations with one action) are recorded
 in several units, or also without one, the code without the unit stays in `metadata/codes.parquet`,
@@ -466,7 +468,8 @@ agreement with the real release. Never commit raw ALOTT data or MEDS output deri
     To migrate, rewrite old codes with the regex `^MEDICATION//STOP//` → `MEDICATION//END//`.
 
 - **Every start and administration code ends in its dose unit**: `MEDICATION//START//<drug>//<dose unit>`
-    and `MEDICATION//MAR//<drug>//<action>//<dose unit>`, with `//UNK` for a row that records no unit.
+    and `MEDICATION//MAR//<drug>//<action>//<dose unit>`, with the unit stripped of surrounding whitespace
+    and `//UNK` for a row that records no unit or a blank one.
     Before, only the codes whose rows recorded more than one unit ended in it, which took a package
     pre-stage (`alott_unit_keys`, now removed) and two side tables to decide; now every code has one
     unit by construction, and suMEDS's `sumeds_link_unit_siblings` still gives the code without the

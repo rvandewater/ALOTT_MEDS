@@ -8,7 +8,9 @@ resulting `codes.parquet`.
 import re
 from pathlib import Path
 
+import polars as pl
 import yaml
+from dftly import Parser
 
 CONFIG_FP = Path(__file__).parents[1] / "src" / "ALOTT_MEDS" / "event_configs.yaml"
 RESERVED = {"etl", "sources", "_defaults"}
@@ -83,14 +85,52 @@ def test_unit_metadata_comes_from_the_dose_unit_columns():
     }
 
 
+# The unit component: the unit column stripped of surrounding whitespace, `UNK` where missing or blank.
+STRIPPED_OR_UNK = r'(extract /(?s)\S(?:.*\S)?/ from {unit}) ?? "UNK"'
+
+
 def test_codes_with_a_unit_end_in_it():
-    """Each code with `unit` metadata ends in that same column (or `UNK` where a row records none), so a code
-    has one unit by construction."""
+    """Each code with `unit` metadata ends in that same column, stripped (or `UNK` where a row records none or
+    a blank one), so a code has one unit by construction."""
+    cfg = yaml.safe_load(CONFIG_FP.read_text())
     for table, name, event in _events():
         unit = event.get("_metadata", {}).get("_self", {}).get("unit")
         if unit is None:
             continue
-        assert event["code"].endswith(f"//{{{unit} ?? 'UNK'}}\""), f"{table}/{name}: {event['code']}"
+        component = re.search(r"//\{\$(_\w+)\}\"$", event["code"])
+        assert component, f"{table}/{name}: {event['code']}"
+        derived = cfg[table]["_table"]["cols"][component.group(1)]
+        assert derived == STRIPPED_OR_UNK.format(unit=unit), f"{table}/{name}: {derived}"
+
+
+def test_unit_component_is_stripped_and_blank_is_unk():
+    """` mg`, `mg ` and `mg` give one code, as MEDS-Extract compares units stripped when it writes
+    `codes.parquet`; a blank or missing unit gives `UNK`.
+
+    The action is not a unit and is kept as recorded.
+    """
+    cols = yaml.safe_load(CONFIG_FP.read_text())["emr-datasets/medications"]["_table"]["cols"]
+    units = ["mg", " mg", "mg ", "\tmg\n", "mL / h", "  ", "", None]
+    raw = pl.DataFrame(
+        {
+            "MEDICATION": ["HEPARIN"] * len(units),
+            "MAR_ACTION": [" Given"] * len(units),
+            "HV_DISCRET_DOSE_UNIT": units,
+            "MAR_DOSE_UNIT": units,
+        }
+    ).with_columns(**Parser.to_polars(cols))
+    expected = ["mg", "mg", "mg", "mg", "mL / h", "UNK", "UNK", "UNK"]
+    for name, prefix in (
+        ("medication_start", "MEDICATION//START//HEPARIN//"),
+        ("medication_administration", "MEDICATION//MAR//HEPARIN// Given//"),
+    ):
+        code = _event("emr-datasets/medications", name)["code"]
+        codes = raw.select(**Parser.to_polars({"code": code}))["code"].to_list()
+        assert codes == [prefix + unit for unit in expected], name
+
+
+def _event(table: str, name: str) -> dict:
+    return yaml.safe_load(CONFIG_FP.read_text())[table][name]
 
 
 def test_no_unit_pre_stage():

@@ -243,11 +243,21 @@ emr-datasets/medications:
   # range); its numeric reading is kept where there is one and the raw string otherwise.
   #
   # A code has one unit: the start and administration codes always end in the dose unit as
-  # recorded (`//UNK` on rows that record none), so each has one unit by construction. suMEDS's
-  # `sumeds_link_unit_siblings` gives the codes of a drug ordered (or given, per action) in several
-  # units, or also without one, the code without the unit (the stem) as a parent.
+  # recorded (`//UNK` on rows that record none or a blank one), so each has one unit by
+  # construction. suMEDS's `sumeds_link_unit_siblings` gives the codes of a drug ordered (or given,
+  # per action) in several units, or also without one, the code without the unit (the stem) as a
+  # parent.
+  _table:
+    cols:
+      # The dose units as the codes' last component: stripped of surrounding whitespace, and `UNK`
+      # where missing or blank, as MEDS-Extract compares units when it writes `codes.parquet`
+      # (stripped, blanks dropped), so ` mg` and `mg` give one code. dftly 0.7 has no strip
+      # function, so the extract takes the text from the first to the last non-whitespace
+      # character (`(?s)` lets it span line breaks), which is null when there is none.
+      _start_dose_unit: '(extract /(?s)\S(?:.*\S)?/ from $HV_DISCRET_DOSE_UNIT) ?? "UNK"'
+      _mar_dose_unit: '(extract /(?s)\S(?:.*\S)?/ from $MAR_DOSE_UNIT) ?? "UNK"'
   medication_start:
-    code: f"MEDICATION//START//{$MEDICATION}//{$HV_DISCRET_DOSE_UNIT ?? 'UNK'}"
+    code: f"MEDICATION//START//{$MEDICATION}//{$_start_dose_unit}"
     time: '$startOffsetDate::"%Y-%m-%d %H:%M:%S" @ 23:59:59'
     hadm_id: $aCSN
     numeric_value: $HV_DISCRETE_DOSE::?float64
@@ -276,7 +286,7 @@ emr-datasets/medications:
   # medication time with a time of day. The recorded action is part of the code, since a held
   # or refused dose is not a given one; a row without an action is kept as `UNK`.
   medication_administration:
-    code: f"MEDICATION//MAR//{$MEDICATION}//{$MAR_ACTION ?? 'UNK'}//{$MAR_DOSE_UNIT ?? 'UNK'}"
+    code: f"MEDICATION//MAR//{$MEDICATION}//{$MAR_ACTION ?? 'UNK'}//{$_mar_dose_unit}"
     time: '$OffsetMAR_TAKEN_TIME::"%Y-%m-%d %H:%M:%S"'
     hadm_id: $aCSN
     numeric_value: $MAR_DOSE::?float64

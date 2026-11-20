@@ -111,11 +111,12 @@ def write_synthetic_input(root: Path) -> None:
             "ORDERING_MODE": ["Inpatient"] * n,
             "HV_DISCRETE_DOSE": ["40", "1-2"] * (n // 2),
             # One drug is ordered in one unit (one order records none), the other in two; the first is
-            # given in two units, both with and without an action, and some doses record none.
-            "HV_DISCRET_DOSE_UNIT": [*["mg"] * (n - 3), None, "units", "mL"],
+            # given in two units, both with and without an action, and some doses record none (one a
+            # blank unit). Two units are padded with whitespace, which their codes drop.
+            "HV_DISCRET_DOSE_UNIT": [*["mg"] * (n - 3), None, "units", " mL "],
             "FREQUENCY": ["DAILY"] * n,
             "MAR_DOSE": ["40"] * n,
-            "MAR_DOSE_UNIT": ["mg", "g", "mg", "mg", None, "mg", "g", "mg", "units", None],
+            "MAR_DOSE_UNIT": ["mg", "g", "mg ", "mg", None, "mg", "g", "mg", "units", "  "],
             "OffsetMAR_TAKEN_TIME": at("11:05:00"),
             "MAR_ACTION": ["Given", None] * (n // 2),
             "MAR_ROUTE": ["Oral"] * n,
@@ -350,6 +351,10 @@ def test_e2e_synthetic():
         assert parents[f"MEDICATION//MAR//{drug}//Given//UNK"] == [f"MEDICATION//MAR//{drug}//Given"]
         assert parents[f"MEDICATION//MAR//{other}//Given//units"] is None
         assert parents[f"MEDICATION//MAR//{other}//UNK//UNK"] is None
-        # Every event's own dose unit is its code's unit as recorded.
-        doses = data.filter(pl.col("dose_unit").is_not_null()).join(codes, on="code")
+        # Every event's own dose unit, stripped, is its code's unit as recorded; a blank one is none.
+        doses = data.with_columns(pl.col("dose_unit").str.strip_chars())
+        doses = doses.filter(pl.col("dose_unit") != "").join(codes, on="code")
         assert doses.height and (doses["dose_unit"] == doses["unit_source_value"]).all()
+        assert data.filter(pl.col("dose_unit") == "  ")["code"].to_list() == [
+            f"MEDICATION//MAR//{other}//UNK//UNK"
+        ]
