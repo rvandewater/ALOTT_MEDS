@@ -84,7 +84,7 @@ def test_unit_metadata_comes_from_the_dose_unit_columns():
 
 
 def test_only_codes_flagged_by_the_pre_stage_end_in_their_unit():
-    """Each code with `unit` metadata ends in that same column (or `UNK`) only where the `alott_unit_keys`
+    """Each code with `unit` metadata ends in that same column (or `UNK`) only where the `mixed_unit_keys`
     side table flags it, so that a code with one unit keeps its layout and a code with several gets one per
     unit."""
     cfg = yaml.safe_load(CONFIG_FP.read_text())
@@ -102,11 +102,11 @@ def test_only_codes_flagged_by_the_pre_stage_end_in_their_unit():
 
 
 def test_the_pre_stage_stages_the_side_tables_the_spec_joins():
-    from ALOTT_MEDS.unit_keys import MAR_TABLE, MEDICATIONS, START_TABLE
-
     cfg = yaml.safe_load(CONFIG_FP.read_text())
-    assert cfg["etl"]["pre_stages"] == ["alott_unit_keys"]
-    assert set(cfg[MEDICATIONS]["_table"]["joins"]) == {START_TABLE, MAR_TABLE}
+    [stage] = cfg["etl"]["pre_stages"]
+    side_tables = stage["mixed_unit_keys"]["side_tables"]
+    assert {s["table"] for s in side_tables.values()} == {"emr-datasets/medications"}
+    assert set(cfg["emr-datasets/medications"]["_table"]["joins"]) == set(side_tables)
 
 
 def test_unit_siblings_are_linked_before_suMEDS_enriches():

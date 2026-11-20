@@ -1,7 +1,7 @@
 """End-to-end run of the shipped ETL over a tiny, fully synthetic ALOTT-shaped input.
 
 This distribution is `event_configs.yaml` and `sumeds_rules.yaml` plus the entry-point registrations
-that name them `ALOTT`, and one small unit stage, `alott_unit_keys`.
+that name them `ALOTT`; its unit pre-stage is MEDS-Extract's `mixed_unit_keys`.
 This test covers the
 ETL: that `meds-extract-run spec=ALOTT` resolves that registration, runs the pipeline over raw tables
 laid out the way the spec expects, and leaves a well-formed MEDS cohort behind. Driving it through the
@@ -291,7 +291,7 @@ def test_e2e_synthetic():
 
         # Medication codes carry their dose's recorded unit as `unit` metadata, one String per code, as
         # MEDS-Extract writes it. Only the codes whose rows record more than one unit end in it (`UNK` on
-        # their rows that record none), as the `alott_unit_keys` pre-stage finds; every other code is as
+        # their rows that record none), as the `mixed_unit_keys` pre-stage finds; every other code is as
         # before. The release records no unit for flowsheets, labs or orders, so theirs is null.
         # suMEDS's `sumeds_normalize_units` then writes `unit` in UCUM (`units` -> `{units}`) and keeps the
         # spelling as recorded in `unit_source_value`; the code keeps its name.

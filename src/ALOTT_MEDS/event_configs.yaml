@@ -9,7 +9,8 @@
 # post-stage declared under `etl:` below, using `sumeds_rules.yaml`, registered with suMEDS under
 # the same name. `skip_stages=[sumeds_enrich]` leaves it out. Before it, suMEDS's
 # `sumeds_link_unit_siblings` links codes in `codes.parquet` that differ only in their unit, and
-# before the extraction `alott_unit_keys` finds the medication codes that need their dose unit in the code.
+# before the extraction MEDS-Extract's `mixed_unit_keys` finds the medication codes that need their dose unit
+# in the code.
 #
 # Only the EMR tables (`emr-datasets/`) are extracted. The telemetry folders (alarms,
 # 2-second measurements, WFDB waveforms) are per-admission files whose subject and encounter
@@ -39,11 +40,11 @@ etl:
   # `hadm_id` is the release's encounter key (`aCSN`). Every other extension column is listed under
   # `other_extension_columns` in `dataset.json`.
   raw_source_id_columns: [hadm_id]
-  # Before the canonical stages, `alott_unit_keys` (src/ALOTT_MEDS/unit_keys.py) stages two side
-  # tables, `alott_start_unit_in_code` and `alott_mar_unit_in_code`: the medication start and
-  # administration codes whose rows have more than one dose unit, which therefore end in the unit
-  # (see `emr-datasets/medications` below). They are written from the data on every run, so the
-  # spec names no drug.
+  # Before the canonical stages, MEDS-Extract's `mixed_unit_keys` pre-stage stages two side tables,
+  # `alott_start_unit_in_code` and `alott_mar_unit_in_code`: the medication start and administration
+  # codes whose rows (those with the event's time) have more than one dose unit, which therefore end in
+  # the unit (see `emr-datasets/medications` below). Units are compared stripped, nulls and blanks left
+  # out. They are written from the data on every run, so the spec names no drug.
   #
   # After the canonical stages, suMEDS adds titles and parent codes to `metadata/codes.parquet` and
   # records the result in `dataset.json` under `sumeds_enrichment`. If it cannot (no internet, say),
@@ -56,7 +57,21 @@ etl:
   # unit.) It runs before unit normalisation and the enrichment so that suMEDS records the coverage
   # of the final table and a later `suMEDS-enrich` gives the same table as enriching in the run.
   pre_stages:
-    - alott_unit_keys
+    - mixed_unit_keys:
+        side_tables:
+          alott_start_unit_in_code:
+            table: emr-datasets/medications
+            keys: [MEDICATION]
+            flags:
+              start_unit_in_code:
+                { unit: $HV_DISCRET_DOSE_UNIT, time: $startOffsetDate }
+          alott_mar_unit_in_code:
+            table: emr-datasets/medications
+            # The action as in the code (`_mar_action`, `UNK` where null), under the side table's name.
+            keys: { MEDICATION: $MEDICATION, mar_action: $_mar_action }
+            flags:
+              mar_unit_in_code:
+                { unit: $MAR_DOSE_UNIT, time: $OffsetMAR_TAKEN_TIME }
   post_stages:
     - sumeds_link_unit_siblings
     # One UCUM spelling for every `unit` (suMEDS's shared table, e.g. `Cel`, `mm[Hg]`, `mg/dL`); the
@@ -254,7 +269,7 @@ emr-datasets/medications:
   # A code has one unit. Most drugs are ordered (and given, per action) in one unit, but some in
   # several: only those codes end in the dose unit as recorded (`//UNK` on their rows that record
   # none), every other code is unchanged. Which codes these are depends on the data: the
-  # `alott_unit_keys` pre-stage stages them as side tables, joined here, whose flag is true for a
+  # `mixed_unit_keys` pre-stage stages them as side tables, joined here, whose flag is true for a
   # code that needs its unit and null for every other one.
   _table:
     joins:

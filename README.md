@@ -132,7 +132,7 @@ release this splits 1,266 of the 25,606 start and administration codes (826 star
 administration) into 2,767 per-unit codes and 653 `UNK` codes, and leaves the other 24,340
 unchanged. Codes with one unit are not renamed, because that would break references to them for
 nothing. Which codes are split is read from the data on every run, by the pre-stage
-`alott_unit_keys` ([`src/ALOTT_MEDS/unit_keys.py`](src/ALOTT_MEDS/unit_keys.py)), so the spec names
+`mixed_unit_keys`, MEDS-Extract's, configured under `etl.pre_stages` of the spec, so the spec names
 no drug: it stages two side tables, `alott_start_unit_in_code` and `alott_mar_unit_in_code`, that
 the medications block joins. `MEDICATION//STOP` codes have no dose and are unchanged.
 

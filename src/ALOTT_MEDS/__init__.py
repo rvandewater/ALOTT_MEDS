@@ -12,10 +12,10 @@ enrichment run as one command::
 
 and the plain ETL with ``skip_stages=[sumeds_enrich]`` added.
 
-One small module is the spec's unit pre-stage, registered in MEDS-Transforms' ``MEDS_transforms.stages``
-entry-point group: ``ALOTT_MEDS.unit_keys`` finds the medication codes whose rows have more than one dose
-unit, which therefore end in the unit. The first post-stage, suMEDS's ``sumeds_link_unit_siblings``, gives
-codes in ``metadata/codes.parquet`` that differ only in their unit the code without it as a parent.
+The spec's unit pre-stage is MEDS-Extract's ``mixed_unit_keys``: it finds the medication codes whose rows
+have more than one dose unit, which therefore end in the unit. The first post-stage, suMEDS's
+``sumeds_link_unit_siblings``, gives codes in ``metadata/codes.parquet`` that differ only in their unit
+the code without it as a parent.
 
 Otherwise this package exists so the YAML files are addressable as package data —
 ``importlib.resources.files("ALOTT_MEDS")`` — from an installed wheel.
