@@ -220,7 +220,7 @@ def test_e2e_synthetic():
 
         # Date-only lab, order and medication start/stop times sit at the end of the day, never
         # before the event happened. Administrations keep their time of day.
-        dated = data.filter(pl.col("code").str.contains(r"^(LAB|ORDER|MEDICATION//(START|STOP))//"))
+        dated = data.filter(pl.col("code").str.contains(r"^(LAB|ORDER|MEDICATION//(START|END))//"))
         assert dated.height and (dated["time"].dt.strftime("%H:%M:%S") == "23:59:59").all()
         mar = data.filter(pl.col("code").str.starts_with("MEDICATION//MAR//"))
         assert mar.height == N_SUBJECTS and (mar["time"].dt.strftime("%H:%M") == "11:05").all()
