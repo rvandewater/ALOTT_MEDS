@@ -4,12 +4,9 @@ authors:
   family-names: van de Water
   given-names: Robin
 cff-version: 1.2.0
-date-released: '2026-11-11'
 doi: 10.5281/zenodo.23698073
-license:
-- mit
+license: MIT
 message: If you use this software, please cite it using the metadata from this file.
 repository-code: https://github.com/rvandewater/ALOTT_MEDS
 title: ALOTT MEDS ETL
 type: software
-version: 0.1.0
