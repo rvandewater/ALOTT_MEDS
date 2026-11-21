@@ -84,28 +84,12 @@ def test_unit_metadata_comes_from_the_dose_unit_columns():
     }
 
 
-# The unit component: the unit column stripped of surrounding whitespace, `UNK` where missing or blank.
-STRIPPED_OR_UNK = r'(extract /(?s)\S(?:.*\S)?/ from {unit}) ?? "UNK"'
-
-
-def test_codes_with_a_unit_end_in_it():
-    """Each code with `unit` metadata ends in that same column, stripped (or `UNK` where a row records none or
-    a blank one), so a code has one unit by construction."""
-    cfg = yaml.safe_load(CONFIG_FP.read_text())
-    for table, name, event in _events():
-        unit = event.get("_metadata", {}).get("_self", {}).get("unit")
-        if unit is None:
-            continue
-        component = re.search(r"//\{\$(_\w+)\}\"$", event["code"])
-        assert component, f"{table}/{name}: {event['code']}"
-        derived = cfg[table]["_table"]["cols"][component.group(1)]
-        assert derived == STRIPPED_OR_UNK.format(unit=unit), f"{table}/{name}: {derived}"
-
-
 class TestUnitComponents(UnitComponentContract):
     """Each code that ends in a unit, evaluated with dftly as MEDS-Extract does (suMEDS's shared contract).
 
-    ` mg`, `mg ` and `mg` give one code, and a blank or missing unit gives `UNK`.
+    ` mg`, `mg ` and `mg` give one code, and a blank or missing unit gives `UNK`. With
+    `require_unit_in_code` (suMEDS 0.6.11), each code with `unit` metadata ends in that unit, so a
+    code has one unit by construction.
     """
 
     spec = "ALOTT"
@@ -113,6 +97,7 @@ class TestUnitComponents(UnitComponentContract):
         "emr-datasets/medications/medication_start",
         "emr-datasets/medications/medication_administration",
     )
+    require_unit_in_code = True
 
 
 def test_no_unit_pre_stage():

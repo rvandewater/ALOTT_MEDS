@@ -42,17 +42,18 @@ dependencies = [
     # 0.9.2 is the first MEDS-Extract release that reads the spec's
     # `etl.cleanup_intermediates` (mmcdermott/MEDS_extract#340).
     "meds-extract[download]>=0.9.2,<0.10",
-    # suMEDS 0.6.10 ships `UnitComponentContract`, which tests/test_code_metadata.py runs on the spec.
-    "sumeds>=0.6.10,<0.7",
+    # suMEDS 0.6.10 ships `UnitComponentContract`, which tests/test_code_metadata.py runs on the spec;
+    # 0.6.11 adds its `require_unit_in_code` option.
+    "sumeds>=0.6.11,<0.7",
 ]
 
 [dependency-groups]
 # `shfmt-py` bundles the `shfmt` binary that the `mdformat-shfmt` pre-commit hook shells
-# out to, keeping local + CI behavior in lock step. suMEDS 0.6.10's `testing` extra ships
+# out to, keeping local + CI behavior in lock step. suMEDS 0.6.11's `testing` extra ships
 # `sumeds.testing`, the fake ontology packs and the enrichment, rules and unit component contract
 # tests that tests/ use.
 dev = [
-    "sumeds[testing]>=0.6.10,<0.7",
+    "sumeds[testing]>=0.6.11,<0.7",
     "pre-commit~=3.8",
     "ruff>=0.11,<1.0",
     "pytest~=9.0",
