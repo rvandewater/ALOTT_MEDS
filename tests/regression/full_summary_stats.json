@@ -1,28 +1,28 @@
 {
   "code_metadata": {
     "description_length": {
-      "mean": 101.902,
-      "n": 50548,
+      "mean": 115.121,
+      "n": 78161,
       "quantiles": {
-        "p1": 13.0,
-        "p25": 66.0,
-        "p5": 24.0,
-        "p50": 92.0,
-        "p75": 148.0,
-        "p95": 167.0,
-        "p99": 179.0
+        "p1": 15.0,
+        "p25": 80.0,
+        "p5": 29.0,
+        "p50": 139.0,
+        "p75": 152.0,
+        "p95": 169.0,
+        "p99": 181.0
       },
-      "std": 48.2723
+      "std": 46.0272
     },
-    "n_codes": 50550,
+    "n_codes": 78163,
     "n_data_codes_missing_from_metadata": 0,
-    "n_metadata_codes_absent_from_data": 1266,
-    "n_with_description": 50548,
-    "n_with_parent_codes": 6112,
+    "n_metadata_codes_absent_from_data": 25606,
+    "n_with_description": 78161,
+    "n_with_parent_codes": 34378,
     "ontology": {
       "by_vocabulary": {
         "DIAGNOSIS": {
-          "keys_digest": "sha256:389ee4483105dcf6994c60bea9175ceb17ddd7916eae69dad6e439ca025a0185",
+          "keys_digest": "sha256:3cee3f6f26ad11f93bc55a2b9d771678b4a8cf8ac49a91011da7c6e81c4884af",
           "n_child_codes": 1,
           "n_distinct_keys": 1,
           "n_measurements": 116,
@@ -38,136 +38,136 @@
           "recognized": true
         },
         "MEDICATION": {
-          "keys_digest": "sha256:c3d245be5dd3449d6bafa3138c98951bfd0c93ad080891fd4a4d0e02ace846aa",
-          "n_child_codes": 2767,
-          "n_distinct_keys": 1266,
-          "n_measurements": 1459620,
-          "n_subjects": 18453,
+          "keys_digest": "sha256:74ac9679710df765124b251c4c4eed8004a10f526f65e129a30571d2b9c675e6",
+          "n_child_codes": 31033,
+          "n_distinct_keys": 25606,
+          "n_measurements": 13971905,
+          "n_subjects": 18457,
           "numeric": {
-            "mean": 12301.4,
-            "n_finite": 1386983,
-            "std": 77440.8
+            "mean": 2054.17,
+            "n_finite": 9276607,
+            "std": 30811.3
           },
           "recognized": false
         }
       },
       "coverage": {
-        "frac_measurements_mapped": 0.0286924,
-        "frac_observed_codes_with_parents": 0.124016,
-        "n_measurements_mapped": 1509002,
-        "n_measurements_unmapped": 51083410,
-        "n_observed_codes": 49284,
-        "n_observed_codes_with_parents": 6112,
-        "n_observed_codes_without_parents": 43172
+        "frac_measurements_mapped": 0.266603,
+        "frac_observed_codes_with_parents": 0.654109,
+        "n_measurements_mapped": 14021287,
+        "n_measurements_unmapped": 38571125,
+        "n_observed_codes": 52557,
+        "n_observed_codes_with_parents": 34378,
+        "n_observed_codes_without_parents": 18179
       },
       "n_codes_in_multiple_vocabularies": 1,
-      "n_codes_with_parents": 6112,
-      "n_distinct_parents": 7195,
-      "n_parent_links": 12680,
+      "n_codes_with_parents": 34378,
+      "n_distinct_parents": 31535,
+      "n_parent_links": 40946,
       "n_parents_without_vocabulary": 0,
       "n_vocabularies": 3,
       "n_vocabularies_recognized": 1,
       "parents_per_code": {
-        "mean": 0.250841,
-        "n": 50550,
+        "mean": 0.523854,
+        "n": 78163,
         "quantiles": {
           "p1": 0.0,
           "p25": 0.0,
           "p5": 0.0,
           "p50": 0.0,
-          "p75": 0.0,
-          "p95": 2.0,
+          "p75": 1.0,
+          "p95": 1.0,
           "p99": 4.0
         },
-        "std": 0.800321
+        "std": 0.736297
       },
       "present": true,
       "vocabularies_per_code": {
-        "mean": 0.12093,
-        "n": 50550,
+        "mean": 0.439837,
+        "n": 78163,
         "quantiles": {
           "p1": 0.0,
           "p25": 0.0,
           "p5": 0.0,
           "p50": 0.0,
-          "p75": 0.0,
+          "p75": 1.0,
           "p95": 1.0,
           "p99": 1.0
         },
-        "std": 0.32611
+        "std": 0.496396
       }
     },
     "present": true,
-    "vocabulary_digest": "sha256:b76bb8358ec7e21181cd6a4d2e4848901e33d809d5be50590c46dd97b0be000b"
+    "vocabulary_digest": "sha256:62f2b0d78133c176e47bbb1324eeef22ac29db10aef8a7169acf9fce6e90f70f"
   },
   "codes": {
     "concentration": {
       "frac_measurements_in_top_10": 0.383938,
-      "frac_measurements_in_top_100": 0.582409,
-      "frac_measurements_in_top_1000": 0.864605,
+      "frac_measurements_in_top_100": 0.582334,
+      "frac_measurements_in_top_1000": 0.863693,
       "n_codes_covering_50pct": 51,
-      "n_codes_covering_90pct": 1475,
-      "n_codes_covering_99pct": 9184
+      "n_codes_covering_90pct": 1491,
+      "n_codes_covering_99pct": 9472
     },
     "digests": {
-      "alphabetical": "sha256:824b151d3b62e73913d08b98145aebaae998694a09ec1a08f09c1b89bca996eb",
-      "by_measurement_frequency": "sha256:3245e950763b59e8719394150b14af1681bfba027a5f52dec7f00429dc558a41",
-      "by_subject_frequency": "sha256:ac6b52045976b9a9a14dbd95bc22ec31404ddf3a27ccc4e8a0655b140d9f946b",
+      "alphabetical": "sha256:8d249d23fae43c22e7862253f22fde9cffd93cdcf5cbd52cf6cd7ed5509efef3",
+      "by_measurement_frequency": "sha256:d4fe3d52f544828aef471a3f5163004910b5d91c4e15c124567ec5f032f75edc",
+      "by_subject_frequency": "sha256:505c2179339c53810f861932a6fa280e4060e0168dc803098f9469e1e89c3651",
       "numeric_moments": {
-        "digest": "sha256:d4a4a2bd24a39db60872d9319f19eb2aeddba1b4cd3bf21be07bb307c6b82c8d",
-        "n_codes": 6143
+        "digest": "sha256:c1e81fe097646f3bfb48ca3ba54363e2a08ce48d1ae6c022b774f4625518858a",
+        "n_codes": 6097
       },
       "thresholded": {
         "100": {
-          "alphabetical": "sha256:b47e8f1f89ec064ed44ccca722dc22422b311ba3495e229af9948b1daad9b2cc",
-          "by_measurement_frequency": "sha256:987d7a225a6b96a208aeac7f38c3929d1b09c5782a526691fd068f8057b91d02",
-          "by_subject_frequency": "sha256:5e28042811580a92619ea003c29fe9067a145a5c7a9e46796840998c8162a2b5",
-          "n_codes": 6971
+          "alphabetical": "sha256:fd5ba6e8618c838580566c7c2ff43b4d982c5dbad4807cce4e705da698824e89",
+          "by_measurement_frequency": "sha256:01a023c693f8515b4dbaca1e1cf6b046e772ec3c04f309cb4dd18187e71a8d2d",
+          "by_subject_frequency": "sha256:94ef39b825cb3f445bef967bb9cbb7a79feb03523f3f979c990b3fa432f39a9e",
+          "n_codes": 7022
         },
         "1000": {
-          "alphabetical": "sha256:0148c62d2ea4aa4c5be8fb8a3caab62fb898387a04a8ca1cd44255e7d6604e38",
-          "by_measurement_frequency": "sha256:2dd53fd4f9750ad0e273de264e400e530275ce9079420e948098193f8325f575",
-          "by_subject_frequency": "sha256:b9a20be4611192663e90b9abed35f6c52fc21d290987486272dcfadff0140a8e",
-          "n_codes": 1588
+          "alphabetical": "sha256:fa7e1b07b609d7f3c0b7f341d20e10cb98bc5d9e8ed88fec3bf3b04cfd9000db",
+          "by_measurement_frequency": "sha256:4d5dc4af3379c386fdc2fc1b498605b78e91b325619807cb1ac5f58df491e520",
+          "by_subject_frequency": "sha256:8c9b2e5f4f4ad7064c2ece77a06958cc8058ed2dcc334c5d7bca81f693a9824a",
+          "n_codes": 1589
         },
         "20": {
-          "alphabetical": "sha256:9a57d1082a171f138329c7fae8e57d6c6f284de80369a2fdf25940d69067d3c0",
-          "by_measurement_frequency": "sha256:4c4bc0a8ee03177586151b7c50b6c4537b4b56ff14c21a5b52677dc416b045ae",
-          "by_subject_frequency": "sha256:660ba9384faed64cdc5e159dd3060ee10a597a3b3ddf890fde97f5d8fd18d374",
-          "n_codes": 14783
+          "alphabetical": "sha256:ba1375f7959a344842d1781e50b1e0ce4b9a272742af2e1258d8fb20883967f7",
+          "by_measurement_frequency": "sha256:df332962d780be8b31c24f760874933cd2e86b2c2953577f9449ea673a49a0ca",
+          "by_subject_frequency": "sha256:908ae368fa5b5f6636f2473ef40795fec43f54f5c88863131a8bb18d7685b28c",
+          "n_codes": 15051
         }
       }
     },
-    "n_codes_below_min_cell_size": 34501,
-    "n_unique_codes": 49284,
+    "n_codes_below_min_cell_size": 37506,
+    "n_unique_codes": 52557,
     "occurrence": {
       "n_measurements": {
-        "mean": 1067.13,
-        "n": 49284,
+        "mean": 1000.67,
+        "n": 52557,
         "quantiles": {
           "p1": 1.0,
           "p25": 2.0,
           "p5": 1.0,
           "p50": 6.0,
-          "p75": 50.0,
-          "p95": 1359.7,
-          "p99": 13051.4
+          "p75": 44.0,
+          "p95": 1228.2,
+          "p99": 11679.4
         },
-        "std": 49890.9
+        "std": 48312.4
       },
       "n_subjects": {
-        "mean": 161.96,
-        "n": 49284,
+        "mean": 152.567,
+        "n": 52557,
         "quantiles": {
           "p1": 1.0,
           "p25": 1.0,
           "p5": 1.0,
-          "p50": 5.0,
-          "p75": 31.0,
-          "p95": 541.0,
-          "p99": 3547.1
+          "p50": 4.0,
+          "p75": 27.0,
+          "p95": 498.0,
+          "p99": 3416.08
         },
-        "std": 907.637
+        "std": 879.723
       }
     }
   },
@@ -202,7 +202,7 @@
     "n_subjects_with_birth": 0,
     "n_subjects_with_death": 0,
     "n_subjects_with_static": 18466,
-    "n_unique_codes": 49284,
+    "n_unique_codes": 52557,
     "numeric": {
       "mean": 550.92,
       "n_finite": 38796289,
@@ -220,12 +220,12 @@
     }
   },
   "dataset": {
-    "created_at": "2026-11-17T04:17:15.403545+00:00",
+    "created_at": "2026-11-21T00:34:48.209584+00:00",
     "dataset_name": "ALOTT",
     "dataset_version": "1.0.0:0.1.0",
     "description_uri": "https://physionet.org/content/alott/1.0.0/",
     "etl_name": "MEDS_transforms",
-    "etl_version": "0.7.0",
+    "etl_version": "0.7.3",
     "license": "PhysioNet Restricted Health Data License 1.5.0",
     "meds_version": "0.4.1",
     "other_extension_columns": [
@@ -244,18 +244,18 @@
     "sumeds_enrichment": {
       "athena": false,
       "coverage": {
-        "codes": 50550,
+        "codes": 78163,
         "described": [
-          47203,
-          50548
+          74816,
+          78161
         ],
         "with_parent_codes": [
-          2767,
-          6112
+          31033,
+          34378
         ]
       },
       "enriched": true,
-      "enriched_at": "2026-11-17T04:17:30Z",
+      "enriched_at": "2026-11-21T00:35:34Z",
       "ontology_source": "rvandewater/sumeds-ontologies@v0.2.0",
       "options": {
         "child_codes": false,
@@ -267,32 +267,32 @@
         "sibling_codes": false
       },
       "rules": "ALOTT",
-      "rules_sha256": "bd186ba3498865ba59f51ad4839d076bdfc5fa9ecbdad97650eb1c0132481da2",
-      "sumeds_version": "0.6.3"
+      "rules_sha256": "46c0b6d893865a806d137e3f546748739d29bc5d0d03b102cf0e607088347ba9",
+      "sumeds_version": "0.6.11"
     }
   },
   "dataset_digest": {
     "by_file": {
-      "data/held_out/0.parquet": "sha256:0a76da245bee5e82f4c31d758e1bd4029b32066df2f1cab3b009d4447a415803",
-      "data/train/0.parquet": "sha256:9eb368a398bd02ee4c55e9fc72f807ce3f087086e01e5e11973c44633711d7f5",
-      "data/train/1.parquet": "sha256:ee9bff3de92a4ec462b490f2c97cfb45bc412b37261d4fe2c89f7abee23440f0",
-      "data/tuning/0.parquet": "sha256:c1270f2837171d27f06b162da1bf14f69694136586750f03f781cd77ccff43e0",
-      "metadata/codes.parquet": "sha256:14e9cf8a97a82902d588c082a8fe8d24dcec2904cf4efceec2b4a849be588080",
-      "metadata/dataset.json": "sha256:8b7c19011c6fd4d7f13c7ad506d10bebbd147f0827e9506004ae18187b6c7ed0",
+      "data/held_out/0.parquet": "sha256:4d86e538a4013d4516e037a4f159184ef14993e8a0c496a53fd55b0aae919502",
+      "data/train/0.parquet": "sha256:2380f118cafdc9f1c56cd85bdc9d37ba548a8f7507f443667fdec3abe1edac8e",
+      "data/train/1.parquet": "sha256:ee5f845df5208025e592d2e9e6f12bea0edd90d0315fcd8645ce887143fd78d2",
+      "data/tuning/0.parquet": "sha256:88c187691c35195a6fbc19948448026e4c26e56aaaff3fea02bd2502b46158f5",
+      "metadata/codes.parquet": "sha256:ff32d6b5c8ede9ec77c105b6265ff92e1c1d86b66dc3b5d6c904fc212a09465a",
+      "metadata/dataset.json": "sha256:57615982e8f0ec9a9413900111091f2618466d029319e567e60b346dd4f44126",
       "metadata/subject_splits.parquet": "sha256:c335eef9c47a72a89ec19eb160d8739c17c22b62b93a2ef171813102d5d9484f"
     },
-    "code_metadata": "sha256:bd50852a2da1bc2977f3d7688c1885da472eac8292366468877e9e1d3ecf462f",
-    "combined": "sha256:3b5a13b4520a8cf65a1811834f2a85ed9bc408016bcd62aa1da0cb1e5f31eaa3",
+    "code_metadata": "sha256:3eda464ca591407ed12889b682bb9a295c51343c25b9a481f401b255a8691551",
+    "combined": "sha256:dc8c36d448fe95ba5e569a241e6932f9ce9fb1b1f46e2605c03d6865c11eb4fe",
     "data": {
-      "digest": "sha256:3e66bbc43f1cf73e5e8060cb55fda6f523cb7072fbd50671510299ff85698841",
+      "digest": "sha256:9fe422f4c64b93ffbdb6bc2a8c0840ec833dbe2e35ad7da295af7206656c559b",
       "n_files": 4
     },
-    "dataset_metadata": "sha256:ac0f674cc0ed165a7970c1bf6600367505c976776e87274169ee6f1e10194070",
+    "dataset_metadata": "sha256:fe44b23193700a158fc852c597b4852e2fb5f404cfef8afc2ee3630eaa6cf31a",
     "method": "files",
     "n_files": 7,
     "subject_splits": "sha256:1186d1f82736a8e496e6619824605f6d822e5ed5b7d8130b475e4b92bff4d27d"
   },
-  "extracted_at": "2026-11-17T04:17:40.541186",
+  "extracted_at": "2026-11-21T00:35:41.247070",
   "layout": {
     "code_metadata_columns": {
       "code": "String",
@@ -305,6 +305,7 @@
       "parent_names": "Map(String, String)",
       "standard_concept": "String",
       "unit": "String",
+      "unit_source_value": "String",
       "vocabulary_id": "String"
     },
     "column_dtype_conflicts": {},
@@ -407,18 +408,18 @@
       "std": 4119.59
     },
     "n_unique_codes": {
-      "mean": 432.116,
+      "mean": 434.087,
       "n": 18472,
       "quantiles": {
         "p1": 132.0,
-        "p25": 244.75,
+        "p25": 245.0,
         "p5": 177.0,
-        "p50": 343.0,
-        "p75": 537.0,
-        "p95": 974.0,
-        "p99": 1398.0
+        "p50": 344.0,
+        "p75": 540.0,
+        "p95": 981.45,
+        "p99": 1408.29
       },
-      "std": 269.592
+      "std": 271.979
     },
     "span_days": {
       "mean": 172.246,

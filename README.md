@@ -471,7 +471,15 @@ from it.
 
 ## Breaking changes
 
-### Unreleased (after 0.1.0)
+### 0.2.0 (2026-11-20)
+
+- Rebuilt on the full release; `tests/regression/full_summary_stats.json` regenerated.
+
+- **`unit` in `metadata/codes.parquet` is written in UCUM**, by suMEDS's `sumeds_normalize_units`
+    post-stage (`units` becomes `{units}`), and the new column `unit_source_value` keeps the spelling
+    the release records. A spelling suMEDS does not know is kept as it is. Codes, events and the
+    per-event `dose_unit` are unchanged; only the `unit` column of `codes.parquet` changes. To
+    migrate, read `unit_source_value` where you read `unit` before.
 
 - **Intermediate stage outputs are no longer kept.** Up to 0.1.0, a run left each stage's output in
     `<output_dir>/<stage>/` (`convert_to_parquet/`, `convert_to_MEDS_events/`, `alott_unit_keys/`, `sumeds_enrich/`, …). The spec now sets MEDS-Extract's
